@@ -3,44 +3,64 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>ELITE Poll Pro - Auto Reset</title>
+    <title>ELITE Sync Battle v3.0</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.5.1/dist/confetti.browser.min.js"></script>
     <style>
-        :root { --bg: #0a0a0a; --card: #161616; --theme: #d4af37; --glow: rgba(212, 175, 55, 0.3); --gray: #888; }
-        body { font-family: "PingFang TC", sans-serif; background: var(--bg); color: #e0e0e0; padding: 15px; margin: 0; }
-        .card { background: var(--card); padding: 25px; border-radius: 16px; border: 1px solid #2a2a2a; box-shadow: 0 10px 30px rgba(0,0,0,0.5); margin-bottom: 20px; }
-        h1 { color: var(--theme); font-size: 18px; margin: 0 0 20px 0; border-left: 3px solid var(--theme); padding-left: 12px; }
+        :root { --bg: #0a0a0a; --card: #161616; --theme: #d4af37; --glow: rgba(212, 175, 55, 0.3); }
+        body { font-family: sans-serif; background: var(--bg); color: #e0e0e0; margin: 0; padding: 15px; overflow-x: hidden; }
+        .card { background: var(--card); padding: 20px; border-radius: 16px; border: 1px solid #2a2a2a; margin-bottom: 15px; }
+        h1 { color: var(--theme); font-size: 1.2rem; border-left: 3px solid var(--theme); padding-left: 10px; }
         input, button { width: 100%; padding: 12px; border-radius: 8px; border: 1px solid #333; background: #000; color: #fff; margin-bottom: 10px; box-sizing: border-box; }
         button { background: var(--theme); color: #000; font-weight: bold; border: none; cursor: pointer; }
-        .option-box { position: relative; background: #222; border: 1px solid #333; border-radius: 12px; padding: 18px; margin-bottom: 12px; cursor: pointer; overflow: hidden; }
-        .progress-fill { position: absolute; left: 0; top: 0; bottom: 0; background: var(--glow); width: 0%; z-index: 1; transition: width 0.8s ease; }
-        .option-content { position: relative; z-index: 2; display: flex; justify-content: space-between; }
+        
+        /* 投票進度 */
+        .option-box { position: relative; background: #222; border-radius: 10px; padding: 15px; margin-bottom: 10px; overflow: hidden; }
+        .progress-fill { position: absolute; left: 0; top: 0; bottom: 0; background: var(--glow); width: 0%; transition: width 0.2s; }
+        .content { position: relative; z-index: 2; display: flex; justify-content: space-between; }
+
+        /* 倒數計時遮罩 */
+        #sync-overlay { 
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
+            background: rgba(0,0,0,0.9); z-index: 10000; display: none;
+            flex-direction: column; justify-content: center; align-items: center;
+        }
+        #countdown-num { font-size: 8rem; font-weight: 900; color: var(--theme); text-shadow: 0 0 20px var(--theme); }
+        
+        .status-tag { font-size: 10px; color: var(--gray); text-align: center; margin-top: 5px; }
         .hidden { display: none; }
-        .danger-zone { margin-top: 30px; border-top: 1px solid #333; padding-top: 20px; }
-        .btn-delete { background: #441111; color: #ff4444; border: 1px solid #662222; font-size: 12px; }
+        .timer-display { text-align: center; font-family: monospace; font-size: 2rem; color: #ff4d4d; margin: 10px 0; }
     </style>
 </head>
 <body>
 
 <div id="create-view" class="card">
-    <h1>🆕 發起新投票</h1>
-    <input type="text" id="new-title" placeholder="題目 (例如: 下一場打什麼?)" oninput="detectTheme(this.value)">
+    <h1>🆕 發起同步賽</h1>
+    <input type="text" id="new-title" placeholder="賽事名稱">
+    <input type="number" id="target-count" placeholder="預計總人數 (例: 5)">
     <div id="options-input">
         <input type="text" class="opt-in" placeholder="選項 1">
         <input type="text" class="opt-in" placeholder="選項 2">
     </div>
-    <button onclick="addOptionField()" style="background:#222; color:#fff;">＋ 增加選項</button>
-    <button onclick="submitNewPoll()" style="margin-top:10px;">正式發佈</button>
+    <select id="poll-type-select" style="width:100%; padding:10px; background:#000; color:#fff; margin-bottom:10px;">
+        <option value="0">普通投票模式 (一人一票)</option>
+        <option value="1">連打比賽模式 (一分鐘狂點)</option>
+    </select>
+    <button onclick="submitNewPoll()">正式發佈</button>
 </div>
 
 <div id="poll-view" class="card hidden">
-    <h1 id="poll-display-title">載入中...</h1>
+    <div id="status-bar" style="font-size: 12px; color: var(--theme); margin-bottom:10px;"></div>
+    <h1 id="poll-display-title"></h1>
+    <div id="timer-box" class="timer-display hidden">60.00s</div>
     <div id="poll-options"></div>
-    
-    <div class="danger-zone">
-        <button class="btn-delete" onclick="resetSystem()">🔥 結束並清空此投票紀錄</button>
-    </div>
+    <button id="start-battle-btn" class="hidden" onclick="broadcastStart()">全員準備：開始倒數！</button>
+    <button class="btn-delete" style="background:#331111; color:#ff4444; margin-top:30px;" onclick="resetSystem()">重置系統</button>
+</div>
+
+<div id="sync-overlay">
+    <div style="color:#fff; letter-spacing: 5px;">BATTLE STARTING IN</div>
+    <div id="countdown-num">3</div>
 </div>
 
 <script>
@@ -49,113 +69,148 @@
     const _supabase = supabase.createClient(API_URL, API_KEY);
 
     let currentPoll = null;
-
-    // 偵測主題顏色
-    function detectTheme(text) {
-        const themes = {
-            'game': { keywords: ['打', '玩', 'lol', 'game'], color: '#00f2fe', glow: 'rgba(0, 242, 254, 0.3)' },
-            'food': { keywords: ['吃', '飯', '餓'], color: '#ff7e5f', glow: 'rgba(255, 126, 95, 0.3)' }
-        };
-        let theme = { color: '#d4af37', glow: 'rgba(212, 175, 55, 0.3)' };
-        for (let k in themes) {
-            if (themes[k].keywords.some(kw => text.includes(kw))) theme = themes[k];
-        }
-        document.documentElement.style.setProperty('--theme', theme.color);
-        document.documentElement.style.setProperty('--glow', theme.glow);
-    }
-
-    function addOptionField() {
-        const input = document.createElement('input');
-        input.type = 'text'; input.className = 'opt-in';
-        input.placeholder = `選項 ${document.querySelectorAll('.opt-in').length + 1}`;
-        document.getElementById('options-input').appendChild(input);
-    }
+    let channel = null;
+    let isGameOver = false;
 
     async function submitNewPoll() {
         const title = document.getElementById('new-title').value;
+        const target = parseInt(document.getElementById('target-count').value) || 0;
+        const type = parseInt(document.getElementById('poll-type-select').value);
         const options = {};
         document.querySelectorAll('.opt-in').forEach((el, i) => { if(el.value) options[i+1] = el.value; });
 
-        if (!title || Object.keys(options).length < 2) return alert("請完整填寫");
-
-        const { data } = await _supabase.from('polls').insert([{ title, options }]).select().single();
-        if (data) loadPoll(data.id);
+        const { data } = await _supabase.from('polls').insert([{ title, options, target_voters: target, poll_type: type }]).select().single();
+        if (data) location.reload();
     }
 
-    async function loadPoll(id) {
+    async function loadPoll(poll) {
+        currentPoll = poll;
         document.getElementById('create-view').classList.add('hidden');
         document.getElementById('poll-view').classList.remove('hidden');
-
-        const { data: poll } = await _supabase.from('polls').select('*').eq('id', id).single();
-        currentPoll = poll;
         document.getElementById('poll-display-title').innerText = poll.title;
-        detectTheme(poll.title);
-        updateVotes();
 
-        // 監聽即時更新與「被刪除」事件
-        _supabase.channel('poll_channel').on('postgres_changes', 
-            { event: '*', schema: 'public', table: 'polls' }, (payload) => {
-                if (payload.eventType === 'DELETE') location.reload(); // 如果題目被刪除，大家同步重整
-            }
-        ).on('postgres_changes', 
-            { event: 'INSERT', schema: 'public', table: 'votes' }, () => updateVotes()
+        // 如果是連打模式，顯示開始按鈕 (僅管理員或第一個進入的人可以看到)
+        if (poll.poll_type === 1) {
+            document.getElementById('start-battle-btn').classList.remove('hidden');
+        }
+
+        // 建立 Realtime 頻道
+        channel = _supabase.channel('battle_' + poll.id);
+        
+        channel.on('broadcast', { event: 'start_countdown' }, () => runLocalCountdown())
+               .subscribe();
+
+        // 監聽投票更新
+        _supabase.channel('db_changes').on('postgres_changes', 
+            { event: 'INSERT', schema: 'public', table: 'votes', filter: `poll_id=eq.${poll.id}` }, 
+            () => updateUI()
         ).subscribe();
+
+        updateUI();
+    }
+
+    // --- 同步廣播啟動 ---
+    function broadcastStart() {
+        channel.send({ type: 'broadcast', event: 'start_countdown', payload: {} });
+        runLocalCountdown(); // 自己也開始
+    }
+
+    function runLocalCountdown() {
+        const overlay = document.getElementById('sync-overlay');
+        const num = document.getElementById('countdown-num');
+        overlay.style.display = 'flex';
+        document.getElementById('start-battle-btn').classList.add('hidden');
+
+        let count = 3;
+        const timer = setInterval(() => {
+            count--;
+            num.innerText = count;
+            if (count === 0) {
+                clearInterval(timer);
+                overlay.style.display = 'none';
+                if (currentPoll.poll_type === 1) startOneMinuteBattle();
+            }
+        }, 1000);
+    }
+
+    // --- 一分鐘連打模式 ---
+    function startOneMinuteBattle() {
+        document.getElementById('timer-box').classList.remove('hidden');
+        let timeLeft = 60.00;
+        const gameTimer = setInterval(() => {
+            timeLeft -= 0.1;
+            document.getElementById('timer-box').innerText = timeLeft.toFixed(2) + "s";
+            if (timeLeft <= 0) {
+                clearInterval(gameTimer);
+                isGameOver = true;
+                document.getElementById('timer-box').innerText = "GAME OVER!";
+                confetti({ particleCount: 300, spread: 100 });
+            }
+        }, 100);
     }
 
     async function castVote(optId) {
-        if (localStorage.getItem('voted_' + currentPoll.id)) return;
-        confetti({ particleCount: 100, spread: 70, origin: { y: 0.8 } });
+        if (isGameOver) return;
+        
+        // 普通模式的一人一票限制
+        if (currentPoll.poll_type === 0 && localStorage.getItem('voted_'+currentPoll.id)) return;
+
+        // 連打模式特效
+        if (currentPoll.poll_type === 1) {
+            const btn = document.getElementById(`box-${optId}`);
+            btn.style.transform = 'scale(0.95)';
+            setTimeout(() => btn.style.transform = 'scale(1)', 50);
+        }
+
         await _supabase.from('votes').insert([{ poll_id: currentPoll.id, option_id: optId }]);
-        localStorage.setItem('voted_' + currentPoll.id, optId);
-        updateVotes();
+        
+        if (currentPoll.poll_type === 0) {
+            localStorage.setItem('voted_'+currentPoll.id, optId);
+            updateUI();
+        }
     }
 
-    async function updateVotes() {
-        const { data: votes } = await _supabase.from('votes').select('option_id').eq('poll_id', currentPoll.id);
+    async function updateUI() {
+        const { data: votes } = await _supabase.from('votes').select('option_id');
         const total = votes.length;
         const stats = {};
         votes.forEach(v => stats[v.option_id] = (stats[v.option_id] || 0) + 1);
 
+        // 更新狀態列 (人數追蹤)
+        const votersCount = currentPoll.poll_type === 0 ? total : "∞";
+        const target = currentPoll.target_voters > 0 ? `/ ${currentPoll.target_voters}` : "";
+        document.getElementById('status-bar').innerText = `📊 模式: ${currentPoll.poll_type===1?'連打':'普通'} | 已投: ${votersCount} ${target}`;
+
         const container = document.getElementById('poll-options');
         container.innerHTML = '';
-        const hasVoted = localStorage.getItem('voted_' + currentPoll.id);
-
         Object.entries(currentPoll.options).forEach(([id, text]) => {
-            const percent = total === 0 ? 0 : Math.round(((stats[id] || 0) / total) * 100);
+            const count = stats[id] || 0;
+            const percent = total === 0 ? 0 : Math.min(100, (count / (currentPoll.poll_type === 1 ? total : total)) * 100);
+            
             container.innerHTML += `
-                <div class="option-box" onclick="${hasVoted ? '' : `castVote('${id}')`}">
+                <div id="box-${id}" class="option-box" onclick="castVote('${id}')">
                     <div class="progress-fill" style="width: ${percent}%"></div>
-                    <div class="option-content">
+                    <div class="content">
                         <span>${text}</span>
-                        <span>${percent}%</span>
+                        <span>${count} 票</span>
                     </div>
                 </div>`;
         });
     }
 
-    // 🔥 核心功能：清空重開
     async function resetSystem() {
-        if (!confirm("確定要刪除這場投票的所有紀錄並重新開始嗎？")) return;
-
-        // 1. 刪除當前投票題目 (因為設了 CASCADE，對應的選票會自動被刪除)
-        const { error } = await _supabase.from('polls').delete().eq('id', currentPoll.id);
-
-        if (!error) {
-            alert("系統已重置");
-            location.reload(); // 回到建立介面
-        } else {
-            alert("刪除失敗，請檢查 RLS 權限");
+        if(confirm("重置將刪除所有數據，確定？")) {
+            await _supabase.from('polls').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+            location.reload();
         }
     }
 
-    // 初始檢查：如果有舊投票還在，直接載入
-    async function checkActivePoll() {
-        const { data } = await _supabase.from('polls').select('*').order('created_at', {ascending: false}).limit(1).single();
-        if (data) loadPoll(data.id);
+    async function check() {
+        const { data } = await _supabase.from('polls').select('*').order('created_at', {ascending:false}).limit(1).single();
+        if (data) loadPoll(data);
     }
-    checkActivePoll();
+    check();
 </script>
-
 </body>
 </html>
 
