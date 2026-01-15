@@ -3,173 +3,159 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>ELITE Poll Master v1.0</title>
+    <title>ELITE Poll Pro - Auto Reset</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.5.1/dist/confetti.browser.min.js"></script>
     <style>
-        :root { --bg: #0a0a0a; --card: #161616; --gold: #d4af37; --gray: #888; --blue: #3498db; --green: #2ecc71; }
+        :root { --bg: #0a0a0a; --card: #161616; --theme: #d4af37; --glow: rgba(212, 175, 55, 0.3); --gray: #888; }
         body { font-family: "PingFang TC", sans-serif; background: var(--bg); color: #e0e0e0; padding: 15px; margin: 0; }
-        
-        /* 繼承 Ledger Pro 風格 */
-        .top-nav { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
-        .sys-status { font-size: 10px; color: var(--gold); letter-spacing: 1px; }
-        
         .card { background: var(--card); padding: 25px; border-radius: 16px; border: 1px solid #2a2a2a; box-shadow: 0 10px 30px rgba(0,0,0,0.5); margin-bottom: 20px; }
-        h1 { color: var(--gold); font-size: 18px; margin: 0 0 25px 0; border-left: 3px solid var(--gold); padding-left: 12px; }
-        
-        /* 遊戲化投票選項 */
-        .option-box { 
-            position: relative; 
-            background: #222; 
-            border: 1px solid #333; 
-            border-radius: 12px; 
-            padding: 18px; 
-            margin-bottom: 12px; 
-            cursor: pointer; 
-            overflow: hidden; 
-            transition: 0.3s;
-        }
-        .option-box:hover { border-color: var(--gold); transform: translateY(-2px); }
-        .option-box:active { transform: scale(0.98); }
-
-        .progress-fill {
-            position: absolute;
-            left: 0; top: 0; bottom: 0;
-            background: rgba(212, 175, 55, 0.15);
-            width: 0%;
-            z-index: 1;
-            transition: width 0.8s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-        }
-
-        .option-content {
-            position: relative;
-            z-index: 2;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            font-size: 15px;
-            font-weight: 500;
-        }
-
-        .vote-percent { color: var(--gold); font-family: monospace; font-size: 16px; }
-
-        .footer { text-align: center; font-size: 10px; color: var(--gray); margin-top: 30px; }
-        .hash-code { font-family: monospace; color: var(--blue); margin-top: 5px; opacity: 0.6; }
-
-        /* 載入中動畫 */
-        .loader { text-align: center; color: var(--gold); padding: 20px; }
+        h1 { color: var(--theme); font-size: 18px; margin: 0 0 20px 0; border-left: 3px solid var(--theme); padding-left: 12px; }
+        input, button { width: 100%; padding: 12px; border-radius: 8px; border: 1px solid #333; background: #000; color: #fff; margin-bottom: 10px; box-sizing: border-box; }
+        button { background: var(--theme); color: #000; font-weight: bold; border: none; cursor: pointer; }
+        .option-box { position: relative; background: #222; border: 1px solid #333; border-radius: 12px; padding: 18px; margin-bottom: 12px; cursor: pointer; overflow: hidden; }
+        .progress-fill { position: absolute; left: 0; top: 0; bottom: 0; background: var(--glow); width: 0%; z-index: 1; transition: width 0.8s ease; }
+        .option-content { position: relative; z-index: 2; display: flex; justify-content: space-between; }
+        .hidden { display: none; }
+        .danger-zone { margin-top: 30px; border-top: 1px solid #333; padding-top: 20px; }
+        .btn-delete { background: #441111; color: #ff4444; border: 1px solid #662222; font-size: 12px; }
     </style>
 </head>
 <body>
 
-<div class="top-nav">
-    <div class="sys-status">● ELITE VOTE SECURE-LINK</div>
-    <div style="font-size: 10px; color: var(--gray);">ID: nzuxyief...</div>
+<div id="create-view" class="card">
+    <h1>🆕 發起新投票</h1>
+    <input type="text" id="new-title" placeholder="題目 (例如: 下一場打什麼?)" oninput="detectTheme(this.value)">
+    <div id="options-input">
+        <input type="text" class="opt-in" placeholder="選項 1">
+        <input type="text" class="opt-in" placeholder="選項 2">
+    </div>
+    <button onclick="addOptionField()" style="background:#222; color:#fff;">＋ 增加選項</button>
+    <button onclick="submitNewPoll()" style="margin-top:10px;">正式發佈</button>
 </div>
 
-<div class="card">
-    <h1 id="poll-title">正在連線至加密伺服器...</h1>
-    <div id="poll-options">
-        <div class="loader">讀取中...</div>
+<div id="poll-view" class="card hidden">
+    <h1 id="poll-display-title">載入中...</h1>
+    <div id="poll-options"></div>
+    
+    <div class="danger-zone">
+        <button class="btn-delete" onclick="resetSystem()">🔥 結束並清空此投票紀錄</button>
     </div>
 </div>
 
-<div class="footer">
-    DECENTRALIZED VERIFICATION HASH
-    <div id="verify-hash" class="hash-code">WAITING FOR DATA...</div>
-</div>
-
 <script>
-    // 結合你的專屬鑰匙
     const API_URL = 'https://nzuxyiefpenwuqudajdw.supabase.co';
     const API_KEY = 'sb_publishable_7y2n8zIopxlKEhcsJ05D2A_U89IFgae';
     const _supabase = supabase.createClient(API_URL, API_KEY);
 
     let currentPoll = null;
 
-    async function init() {
-        // 1. 抓取最新的一個投票題目
-        const { data: poll, error } = await _supabase.from('polls').select('*').order('created_at', { ascending: false }).limit(1).single();
-        
-        if (error || !poll) {
-            document.getElementById('poll-title').innerText = "暫無投票活動";
-            document.getElementById('poll-options').innerHTML = "";
-            return;
+    // 偵測主題顏色
+    function detectTheme(text) {
+        const themes = {
+            'game': { keywords: ['打', '玩', 'lol', 'game'], color: '#00f2fe', glow: 'rgba(0, 242, 254, 0.3)' },
+            'food': { keywords: ['吃', '飯', '餓'], color: '#ff7e5f', glow: 'rgba(255, 126, 95, 0.3)' }
+        };
+        let theme = { color: '#d4af37', glow: 'rgba(212, 175, 55, 0.3)' };
+        for (let k in themes) {
+            if (themes[k].keywords.some(kw => text.includes(kw))) theme = themes[k];
         }
-
-        currentPoll = poll;
-        document.getElementById('poll-title').innerText = poll.title;
-        
-        // 2. 初始渲染
-        renderOptions(poll.options);
-        updateVotes();
-
-        // 3. 開啟 Realtime 即時聽取新選票
-        _supabase.channel('any')
-            .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'votes' }, () => {
-                updateVotes();
-            })
-            .subscribe();
+        document.documentElement.style.setProperty('--theme', theme.color);
+        document.documentElement.style.setProperty('--glow', theme.glow);
     }
 
-    function renderOptions(options) {
-        const container = document.getElementById('poll-options');
-        container.innerHTML = '';
-        Object.entries(options).forEach(([id, text]) => {
-            container.innerHTML += `
-                <div class="option-box" onclick="castVote('${id}')">
-                    <div class="progress-fill" id="fill-${id}"></div>
-                    <div class="option-content">
-                        <span>${text}</span>
-                        <span class="vote-percent" id="perc-${id}">0%</span>
-                    </div>
-                </div>
-            `;
-        });
+    function addOptionField() {
+        const input = document.createElement('input');
+        input.type = 'text'; input.className = 'opt-in';
+        input.placeholder = `選項 ${document.querySelectorAll('.opt-in').length + 1}`;
+        document.getElementById('options-input').appendChild(input);
+    }
+
+    async function submitNewPoll() {
+        const title = document.getElementById('new-title').value;
+        const options = {};
+        document.querySelectorAll('.opt-in').forEach((el, i) => { if(el.value) options[i+1] = el.value; });
+
+        if (!title || Object.keys(options).length < 2) return alert("請完整填寫");
+
+        const { data } = await _supabase.from('polls').insert([{ title, options }]).select().single();
+        if (data) loadPoll(data.id);
+    }
+
+    async function loadPoll(id) {
+        document.getElementById('create-view').classList.add('hidden');
+        document.getElementById('poll-view').classList.remove('hidden');
+
+        const { data: poll } = await _supabase.from('polls').select('*').eq('id', id).single();
+        currentPoll = poll;
+        document.getElementById('poll-display-title').innerText = poll.title;
+        detectTheme(poll.title);
+        updateVotes();
+
+        // 監聽即時更新與「被刪除」事件
+        _supabase.channel('poll_channel').on('postgres_changes', 
+            { event: '*', schema: 'public', table: 'polls' }, (payload) => {
+                if (payload.eventType === 'DELETE') location.reload(); // 如果題目被刪除，大家同步重整
+            }
+        ).on('postgres_changes', 
+            { event: 'INSERT', schema: 'public', table: 'votes' }, () => updateVotes()
+        ).subscribe();
     }
 
     async function castVote(optId) {
-        // 遊戲化特效：噴發金幣色紙屑
-        confetti({
-            particleCount: 100,
-            spread: 60,
-            colors: ['#d4af37', '#ffffff', '#f9f6ef'],
-            origin: { y: 0.8 }
-        });
-
-        const { error } = await _supabase.from('votes').insert([
-            { poll_id: currentPoll.id, option_id: optId }
-        ]);
-
-        if (error) console.error("Vote Error:", error);
+        if (localStorage.getItem('voted_' + currentPoll.id)) return;
+        confetti({ particleCount: 100, spread: 70, origin: { y: 0.8 } });
+        await _supabase.from('votes').insert([{ poll_id: currentPoll.id, option_id: optId }]);
+        localStorage.setItem('voted_' + currentPoll.id, optId);
+        updateVotes();
     }
 
     async function updateVotes() {
         const { data: votes } = await _supabase.from('votes').select('option_id').eq('poll_id', currentPoll.id);
-        
         const total = votes.length;
         const stats = {};
         votes.forEach(v => stats[v.option_id] = (stats[v.option_id] || 0) + 1);
 
-        // 更新進度條與百分比
-        Object.keys(currentPoll.options).forEach(optId => {
-            const count = stats[optId] || 0;
-            const percent = total === 0 ? 0 : Math.round((count / total) * 100);
-            
-            const fill = document.getElementById(`fill-${optId}`);
-            const text = document.getElementById(`perc-${optId}`);
-            
-            if (fill) fill.style.width = percent + '%';
-            if (text) text.innerText = percent + '%';
-        });
+        const container = document.getElementById('poll-options');
+        container.innerHTML = '';
+        const hasVoted = localStorage.getItem('voted_' + currentPoll.id);
 
-        // 產生透明指紋 (SHA-256 簡化版模擬)
-        const fingerprint = btoa(JSON.stringify(votes)).substring(0, 16).toUpperCase();
-        document.getElementById('verify-hash').innerText = `VERIFY_SIG: ${fingerprint}-${total}VOTES`;
+        Object.entries(currentPoll.options).forEach(([id, text]) => {
+            const percent = total === 0 ? 0 : Math.round(((stats[id] || 0) / total) * 100);
+            container.innerHTML += `
+                <div class="option-box" onclick="${hasVoted ? '' : `castVote('${id}')`}">
+                    <div class="progress-fill" style="width: ${percent}%"></div>
+                    <div class="option-content">
+                        <span>${text}</span>
+                        <span>${percent}%</span>
+                    </div>
+                </div>`;
+        });
     }
 
-    init();
+    // 🔥 核心功能：清空重開
+    async function resetSystem() {
+        if (!confirm("確定要刪除這場投票的所有紀錄並重新開始嗎？")) return;
+
+        // 1. 刪除當前投票題目 (因為設了 CASCADE，對應的選票會自動被刪除)
+        const { error } = await _supabase.from('polls').delete().eq('id', currentPoll.id);
+
+        if (!error) {
+            alert("系統已重置");
+            location.reload(); // 回到建立介面
+        } else {
+            alert("刪除失敗，請檢查 RLS 權限");
+        }
+    }
+
+    // 初始檢查：如果有舊投票還在，直接載入
+    async function checkActivePoll() {
+        const { data } = await _supabase.from('polls').select('*').order('created_at', {ascending: false}).limit(1).single();
+        if (data) loadPoll(data.id);
+    }
+    checkActivePoll();
 </script>
 
 </body>
 </html>
+
