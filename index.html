@@ -3,220 +3,255 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>ELITE Sync Master v4.0</title>
+    <title>ELITE Sync Master v5.0</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.5.1/dist/confetti.browser.min.js"></script>
     <style>
-        :root { --bg: #0a0a0a; --card: #161616; --theme: #d4af37; --glow: rgba(212, 175, 55, 0.3); }
+        :root { --bg: #0a0a0a; --card: #161616; --theme: #d4af37; --glow: rgba(212, 175, 55, 0.3); --red: #ff4d4d; }
         body { font-family: sans-serif; background: var(--bg); color: #e0e0e0; margin: 0; padding: 15px; }
         .card { background: var(--card); padding: 20px; border-radius: 16px; border: 1px solid #2a2a2a; margin-bottom: 15px; }
-        h1 { color: var(--theme); font-size: 1.2rem; border-left: 3px solid var(--theme); padding-left: 10px; }
+        h1 { color: var(--theme); font-size: 1.2rem; border-left: 3px solid var(--theme); padding-left: 10px; margin-top:0; }
         input, button, select { width: 100%; padding: 12px; border-radius: 8px; border: 1px solid #333; background: #000; color: #fff; margin-bottom: 10px; box-sizing: border-box; }
         button { background: var(--theme); color: #000; font-weight: bold; border: none; cursor: pointer; }
+        button:disabled { background: #333; color: #666; cursor: not-allowed; }
         
-        .option-box { position: relative; background: #222; border-radius: 10px; padding: 15px; margin-bottom: 10px; overflow: hidden; transition: transform 0.1s; }
+        .option-box { position: relative; background: #222; border-radius: 10px; padding: 15px; margin-bottom: 10px; overflow: hidden; transition: 0.1s; }
         .progress-fill { position: absolute; left: 0; top: 0; bottom: 0; background: var(--glow); width: 0%; transition: width 0.2s; }
         .content { position: relative; z-index: 2; display: flex; justify-content: space-between; }
 
-        #sync-overlay { 
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
-            background: rgba(0,0,0,0.95); z-index: 10000; display: none;
-            flex-direction: column; justify-content: center; align-items: center;
-        }
+        #sync-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.95); z-index: 10000; display: none; flex-direction: column; justify-content: center; align-items: center; }
         #countdown-num { font-size: 8rem; font-weight: 900; color: var(--theme); }
-        .timer-display { text-align: center; font-family: monospace; font-size: 2.5rem; color: #ff4d4d; margin: 10px 0; font-weight: bold; }
-        .wait-msg { text-align: center; color: var(--theme); font-size: 14px; margin-top: 20px; animation: blink 1s infinite; }
-        @keyframes blink { 50% { opacity: 0.5; } }
+        
+        .user-chip { display: inline-block; padding: 5px 10px; border-radius: 20px; background: #222; font-size: 12px; margin: 2px; border: 1px solid #333; }
+        .user-chip.ready { border-color: var(--theme); color: var(--theme); background: rgba(212,175,55,0.1); }
+        .timer-display { text-align: center; font-family: monospace; font-size: 2.5rem; color: var(--red); margin: 10px 0; font-weight: bold; }
+        .hidden { display: none; }
     </style>
 </head>
 <body>
 
-<div id="create-view" class="card">
-    <h1>🆕 發起同步競技</h1>
-    <input type="text" id="new-title" placeholder="比賽項目">
-    <input type="number" id="target-count" placeholder="預計投票人數 (必填)">
+<div id="login-view" class="card hidden">
+    <h1>👤 誰在現場？</h1>
+    <p style="font-size:12px; color:#888;">請選擇您的身分以同步進入競技場</p>
+    <div id="user-select-list"></div>
+</div>
+
+<div id="create-view" class="card hidden">
+    <h1>🆕 發起新賽事</h1>
+    <input type="text" id="new-title" placeholder="比賽項目名稱">
     <div id="options-input">
         <input type="text" class="opt-in" placeholder="選項 1">
         <input type="text" class="opt-in" placeholder="選項 2">
     </div>
-    <label style="font-size: 12px; color: #888;">設定比賽時長</label>
-    <select id="duration-select">
-        <option value="15">15 秒 (快閃)</option>
-        <option value="30">30 秒 (激烈)</option>
-        <option value="60" selected>60 秒 (標準)</option>
-        <option value="120">120 秒 (馬拉松)</option>
+    <label style="font-size: 12px; color: #888;">選擇模式與時間</label>
+    <select id="mode-select" onchange="document.getElementById('duration-box').style.display = this.value=='1'?'block':'none'">
+        <option value="1">競技連點 (倒數同步)</option>
+        <option value="0">一般投票 (一人一票)</option>
     </select>
-    <button onclick="submitNewPoll()">發佈並等待成員</button>
+    <div id="duration-box">
+        <select id="duration-select">
+            <option value="15">15 秒</option>
+            <option value="30">30 秒</option>
+            <option value="60" selected>60 秒</option>
+        </select>
+    </div>
+    <button onclick="submitNewPoll()">建立並邀請成員</button>
 </div>
 
 <div id="poll-view" class="card hidden">
-    <div id="status-bar" style="text-align:center; font-size: 13px; color: #888; margin-bottom:10px;"></div>
+    <div id="status-bar" style="margin-bottom:15px;"></div>
     <h1 id="poll-display-title"></h1>
-    <div id="timer-box" class="timer-display">準備中</div>
+    <div id="timer-box" class="timer-display">等待準備</div>
     <div id="poll-options"></div>
     
-    <div id="wait-area" class="wait-msg">等待所有人進入遊戲...</div>
-    <button id="start-battle-btn" class="hidden" onclick="broadcastStart()">全體就緒：開始倒數！</button>
-    <button style="background:#222; color:#555; margin-top:50px; font-size:10px;" onclick="resetSystem()">重置系統</button>
+    <div id="ready-zone" style="text-align:center; margin-top:20px;">
+        <button id="ready-btn" onclick="toggleReady()">我準備好了 (READY)</button>
+        <div id="ready-list" style="margin-top:10px;"></div>
+    </div>
+
+    <button id="start-battle-btn" class="hidden" disabled onclick="broadcastStart()">全員到齊：開始倒數！</button>
+    <button style="background:#222; color:#555; margin-top:40px; font-size:10px;" onclick="resetSystem()">重置系統</button>
 </div>
 
-<div id="sync-overlay">
-    <div id="countdown-num">3</div>
-</div>
+<div id="sync-overlay"><div id="countdown-num">3</div></div>
 
 <script>
     const API_URL = 'https://nzuxyiefpenwuqudajdw.supabase.co';
     const API_KEY = 'sb_publishable_7y2n8zIopxlKEhcsJ05D2A_U89IFgae';
     const _supabase = supabase.createClient(API_URL, API_KEY);
 
-    let currentPoll = null;
-    let syncChannel = null;
-    let gameEndTime = null;
+    let currentPoll = null, myName = localStorage.getItem('elite_user'), players = [], syncChannel = null, gameEndTime = null;
+
+    async function init() {
+        // 抓取成員清單
+        const { data: pData } = await _supabase.from('players').select('name');
+        players = pData || [];
+
+        const { data: poll } = await _supabase.from('polls').select('*').order('created_at', {ascending:false}).limit(1).single();
+        
+        if (!myName) {
+            showLogin();
+        } else if (!poll) {
+            showCreate();
+        } else {
+            loadPoll(poll);
+        }
+    }
+
+    function showLogin() {
+        document.getElementById('login-view').classList.remove('hidden');
+        const list = document.getElementById('user-select-list');
+        list.innerHTML = players.map(p => `<button onclick="setMe('${p.name}')" style="background:#222; margin-bottom:5px;">${p.name}</button>`).join('');
+    }
+
+    function setMe(name) {
+        localStorage.setItem('elite_user', name);
+        location.reload();
+    }
+
+    function showCreate() {
+        document.getElementById('create-view').classList.remove('hidden');
+    }
 
     async function submitNewPoll() {
         const title = document.getElementById('new-title').value;
-        const target = parseInt(document.getElementById('target-count').value) || 0;
+        const mode = parseInt(document.getElementById('mode-select').value);
         const duration = parseInt(document.getElementById('duration-select').value);
         const options = {};
         document.querySelectorAll('.opt-in').forEach((el, i) => { if(el.value) options[i+1] = el.value; });
-        if (!title || target === 0) return alert("請輸入標題與人數");
-
-        await _supabase.from('polls').insert([{ title, options, target_voters: target, duration_sec: duration, poll_type: 1 }]);
+        
+        await _supabase.from('polls').insert([{ 
+            title, options, poll_type: mode, 
+            duration_sec: duration, target_voters: players.length 
+        }]);
         location.reload();
     }
 
     async function loadPoll(poll) {
         currentPoll = poll;
-        document.getElementById('create-view').classList.add('hidden');
         document.getElementById('poll-view').classList.remove('hidden');
         document.getElementById('poll-display-title').innerText = poll.title;
 
-        // 訂閱廣播頻道
-        syncChannel = _supabase.channel('sync_' + poll.id, { config: { broadcast: { self: true } } });
-        syncChannel.on('broadcast', { event: 'start_all' }, (payload) => {
-            gameEndTime = new Date(payload.payload.endTime);
-            runSyncCountdown();
-        }).subscribe();
+        // 設定 Realtime 頻道 (包含 Presence 功能追蹤準備狀態)
+        syncChannel = _supabase.channel('sync_' + poll.id, { config: { presence: { key: myName } } });
+        
+        syncChannel
+            .on('presence', { event: 'sync' }, () => updateReadyList())
+            .on('broadcast', { event: 'start_all' }, (p) => { 
+                gameEndTime = new Date(p.payload.endTime); 
+                runSyncCountdown(); 
+            })
+            .subscribe(async (status) => {
+                if (status === 'SUBSCRIBED') await syncChannel.track({ ready: false });
+            });
 
-        // 監聽數據庫，判斷是否已有開始時間（給中途加入的人）
-        _supabase.channel('db_sync').on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'polls' }, payload => {
-            if (payload.new.start_at && !gameEndTime) location.reload(); 
-        }).on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'votes' }, () => updateUI())
-        .subscribe();
+        _supabase.channel('db').on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'votes' }, () => updateUI()).subscribe();
 
-        // 如果主持人還沒按開始，顯示開始按鈕
-        if (!poll.start_at) document.getElementById('start-battle-btn').classList.remove('hidden');
-        else {
+        if (poll.start_at) {
             gameEndTime = new Date(poll.end_at);
-            document.getElementById('wait-area').classList.add('hidden');
+            document.getElementById('ready-zone').classList.add('hidden');
             startVisualTimer();
         }
-
         updateUI();
     }
 
-    async function broadcastStart() {
-        const startAt = new Date();
-        const endAt = new Date(startAt.getTime() + currentPoll.duration_sec * 1000);
-        
-        // 寫入資料庫，讓所有人同步
-        await _supabase.from('polls').update({ 
-            start_at: startAt.toISOString(), 
-            end_at: endAt.toISOString() 
-        }).eq('id', currentPoll.id);
+    async function toggleReady() {
+        const btn = document.getElementById('ready-btn');
+        const isReady = btn.innerText.includes('READY');
+        btn.innerText = isReady ? '取消準備' : '我準備好了 (READY)';
+        btn.style.background = isReady ? '#444' : 'var(--theme)';
+        await syncChannel.track({ ready: isReady });
+    }
 
-        syncChannel.send({
-            type: 'broadcast',
-            event: 'start_all',
-            payload: { endTime: endAt.toISOString() }
-        });
+    function updateReadyList() {
+        const state = syncChannel.presenceState();
+        const readyNames = [];
+        Object.keys(state).forEach(key => { if(state[key][0].ready) readyNames.push(key); });
+
+        document.getElementById('ready-list').innerHTML = players.map(p => 
+            `<span class="user-chip ${readyNames.includes(p.name)?'ready':''}">${p.name}</span>`
+        ).join('');
+
+        // 所有人準備好才開啟按鈕
+        const startBtn = document.getElementById('start-battle-btn');
+        if (readyNames.length >= players.length) {
+            startBtn.classList.remove('hidden');
+            startBtn.disabled = false;
+        } else {
+            startBtn.disabled = true;
+        }
+    }
+
+    async function broadcastStart() {
+        const endAt = new Date(Date.now() + currentPoll.duration_sec * 1000);
+        await _supabase.from('polls').update({ start_at: new Date().toISOString(), end_at: endAt.toISOString() }).eq('id', currentPoll.id);
+        syncChannel.send({ type: 'broadcast', event: 'start_all', payload: { endTime: endAt.toISOString() } });
     }
 
     function runSyncCountdown() {
-        document.getElementById('wait-area').classList.add('hidden');
+        document.getElementById('ready-zone').classList.add('hidden');
         document.getElementById('start-battle-btn').classList.add('hidden');
-        const overlay = document.getElementById('sync-overlay');
-        const num = document.getElementById('countdown-num');
+        const overlay = document.getElementById('sync-overlay'), num = document.getElementById('countdown-num');
         overlay.style.display = 'flex';
-
-        let count = 3;
+        let c = 3;
         const t = setInterval(() => {
-            count--;
-            num.innerText = count || 'GO!';
-            if (count < 0) {
-                clearInterval(t);
-                overlay.style.display = 'none';
-                startVisualTimer();
-            }
+            c--; num.innerText = c || 'GO!';
+            if (c < 0) { clearInterval(t); overlay.style.display = 'none'; startVisualTimer(); }
         }, 1000);
     }
 
     function startVisualTimer() {
-        const timerBox = document.getElementById('timer-box');
-        const interval = setInterval(() => {
-            const now = new Date();
-            const diff = (gameEndTime - now) / 1000;
-
-            if (diff <= 0) {
-                clearInterval(interval);
-                timerBox.innerText = "FINISH!";
-                timerBox.style.color = "#aaa";
-                confetti({ particleCount: 200 });
-            } else {
-                timerBox.innerText = diff.toFixed(2) + "s";
-            }
+        if (currentPoll.poll_type == 0) {
+            document.getElementById('timer-box').innerText = "投票中...";
+            return;
+        }
+        const tBox = document.getElementById('timer-box');
+        const iv = setInterval(() => {
+            const diff = (gameEndTime - Date.now()) / 1000;
+            if (diff <= 0) { clearInterval(iv); tBox.innerText = "結束"; confetti(); }
+            else { tBox.innerText = diff.toFixed(1) + "s"; }
         }, 50);
     }
 
     async function castVote(optId) {
-        // 核心同步檢查：比較伺服器規定的結束時間與當前時間
-        if (!gameEndTime || new Date() > gameEndTime) return;
-
-        // 視覺反饋
-        const box = document.getElementById(`box-${optId}`);
-        box.style.transform = 'scale(0.95)';
-        setTimeout(() => box.style.transform = 'scale(1)', 50);
-
-        await _supabase.from('votes').insert([{ poll_id: currentPoll.id, option_id: optId }]);
+        if (currentPoll.poll_type == 1) { // 連點模式
+            if (!gameEndTime || Date.now() > gameEndTime) return;
+        } else { // 一般模式
+            const { data } = await _supabase.from('votes').select('id').eq('poll_id', currentPoll.id).eq('voter_name', myName);
+            if (data && data.length > 0) return alert("您已投過票");
+        }
+        await _supabase.from('votes').insert([{ poll_id: currentPoll.id, option_id: optId, voter_name: myName }]);
     }
 
     async function updateUI() {
-        const { data: votes } = await _supabase.from('votes').select('option_id');
+        const { data: vData } = await _supabase.from('votes').select('option_id, voter_name').eq('poll_id', currentPoll.id);
         const stats = {};
-        votes.forEach(v => stats[v.option_id] = (stats[v.option_id] || 0) + 1);
+        vData.forEach(v => stats[v.option_id] = (stats[v.option_id] || 0) + 1);
         
-        // 統計參與人數 (這裏判斷有多少不重複的 session 或 ID，簡單化先用總票數)
-        document.getElementById('status-bar').innerText = `目標人數: ${currentPoll.target_voters} | 總點擊數: ${votes.length}`;
+        const votedUsers = [...new Set(vData.map(v => v.voter_name))];
+        document.getElementById('status-bar').innerHTML = `<small>參與狀況: ${votedUsers.length} / ${players.length}</small>`;
 
         const container = document.getElementById('poll-options');
         container.innerHTML = '';
         Object.entries(currentPoll.options).forEach(([id, text]) => {
             const count = stats[id] || 0;
             const max = Math.max(...Object.values(stats), 1);
-            const percent = (count / max) * 100; // 相對比例顯示
-
+            const percent = (count / (currentPoll.poll_type==1? max : players.length)) * 100;
             container.innerHTML += `
-                <div id="box-${id}" class="option-box" onclick="castVote('${id}')">
+                <div class="option-box" onclick="castVote('${id}')">
                     <div class="progress-fill" style="width: ${percent}%"></div>
-                    <div class="content">
-                        <span>${text}</span>
-                        <span>${count}</span>
-                    </div>
+                    <div class="content"><span>${text}</span><span>${count}</span></div>
                 </div>`;
         });
     }
 
     async function resetSystem() {
-        if(confirm("重置將清空所有數據？")) {
+        if(confirm("確定重置？")) {
             await _supabase.from('polls').delete().neq('id', '0000');
             location.reload();
         }
     }
 
-    async function init() {
-        const { data } = await _supabase.from('polls').select('*').order('created_at', {ascending:false}).limit(1).single();
-        if (data) loadPoll(data);
-    }
     init();
 </script>
 </body>
