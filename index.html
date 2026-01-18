@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>ELITE Sync Master v16.0</title>
+    <title>ELITE Sync Master v17.0</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.5.1/dist/confetti.browser.min.js"></script>
     <style>
@@ -18,17 +18,14 @@
         .member-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 15px; }
         .member-item { background: #222; padding: 10px; border-radius: 8px; font-size: 13px; display: flex; align-items: center; border: 1px solid #333; }
         .member-item input { width: auto; margin-right: 10px; margin-bottom: 0; }
-        
         .option-box { position: relative; background: #222; border-radius: 12px; padding: 20px; margin-bottom: 12px; overflow: hidden; border: 2px solid #333; cursor: pointer; transition: 0.2s; touch-action: manipulation; }
         .option-box.voted { border-color: var(--theme); box-shadow: 0 0 15px var(--glow); background: #2a2a2a; }
         .progress-fill { position: absolute; left: 0; top: 0; bottom: 0; background: var(--glow); width: 0%; transition: width 0.4s cubic-bezier(0.1, 0.7, 0.1, 1); z-index: 1; pointer-events: none; }
         .content { position: relative; z-index: 2; display: flex; justify-content: space-between; align-items: center; font-weight: 900; pointer-events: none; }
         .voted-mark { font-size: 11px; color: var(--theme); margin-top: 4px; display: none; }
         .option-box.voted .voted-mark { display: block; }
-        
         .user-chip { display: inline-block; padding: 5px 12px; border-radius: 20px; background: #111; font-size: 11px; margin: 3px; border: 1px solid #333; color: #555; transition: 0.3s; }
         .user-chip.ready { border-color: var(--theme); color: var(--theme); background: rgba(212,175,55,0.15); box-shadow: 0 0 8px var(--glow); }
-        
         #sync-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); z-index: 10000; display: none; flex-direction: column; justify-content: center; align-items: center; }
         #countdown-num { font-size: 9rem; color: var(--theme); font-weight: 900; }
         .timer-display { text-align: center; font-size: 2.5rem; color: var(--red); font-weight: 900; margin: 10px 0; font-family: monospace; }
@@ -130,9 +127,15 @@
         document.getElementById('mode-label').innerText = poll.poll_type == 1 ? "🔥 競技模式" : "🗳️ 投票模式";
         if (isAdmin) document.getElementById('admin-controls').classList.remove('hidden');
 
-        _supabase.channel('any_change').on('postgres_changes', { event: '*', schema: 'public', table: 'votes' }, () => syncVotes())
-        .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'polls' }, (p) => { if(p.new.start_at && !isGameRunning) startUIFlow(); })
-        .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'polls' }, () => location.reload()).subscribe();
+        // 強制監聽所有資料變動
+        _supabase.channel('public:votes').on('postgres_changes', { event: '*', schema: 'public', table: 'votes' }, (payload) => {
+            console.log("票數變動訊號收到:", payload);
+            syncVotes();
+        }).subscribe();
+
+        _supabase.channel('public:polls').on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'polls' }, (p) => { 
+            if(p.new.start_at && !isGameRunning) startUIFlow(); 
+        }).subscribe();
 
         syncChannel = _supabase.channel('room_' + poll.id, { config: { presence: { key: myName } } });
         syncChannel.on('presence', { event: 'sync' }, () => {
@@ -142,16 +145,21 @@
             if (isAdmin) document.getElementById('start-btn').disabled = (readyNames.length < poll.target_voters);
         }).on('broadcast', { event: 'go' }, () => startUIFlow()).subscribe(async (s) => { if(s==='SUBSCRIBED') await syncChannel.track({ ready: false }); });
 
+        // 每 2 秒強制抓取一次 (保底機制，防止 Realtime 斷線)
+        setInterval(() => { if(isGameRunning && !isFinished) syncVotes(); }, 2000);
+
         await syncVotes();
         if (poll.start_at) startUIFlow(true);
     }
 
     async function syncVotes() {
-        const { data } = await _supabase.from('votes').select('option_id, voter_name').eq('poll_id', currentPoll.id);
-        allVotes = data || [];
-        const myVote = allVotes.find(x => x.voter_name === myName);
-        if (myVote) localVotedId = myVote.option_id;
-        updateUI();
+        const { data, error } = await _supabase.from('votes').select('option_id, voter_name').eq('poll_id', currentPoll.id);
+        if (data) {
+            allVotes = data;
+            const myVote = allVotes.find(x => x.voter_name === myName);
+            if (myVote) localVotedId = myVote.option_id;
+            updateUI();
+        }
     }
 
     async function toggleReady() {
@@ -191,7 +199,7 @@
                 const d = (new Date(currentPoll.end_at) - Date.now()) / 1000;
                 if (d <= 0) { clearInterval(iv); finishGame(); }
                 else document.getElementById('timer-box').innerText = d.toFixed(1) + "s";
-            }, 50);
+            }, 100);
         }
     }
 
@@ -199,28 +207,30 @@
         if (!isGameRunning || isFinished) return;
         if (currentPoll.poll_type == 0 && localVotedId) return;
 
-        if (currentPoll.poll_type == 0) localVotedId = id;
-        allVotes.push({ option_id: id, voter_name: myName });
-        updateUI();
+        // 競技模式下本地先跑顯示，優化體感
+        if (currentPoll.poll_type === 1) {
+            allVotes.push({ option_id: id, voter_name: myName });
+            updateUI();
+        } else {
+            localVotedId = id; // 投票模式鎖定按鈕
+        }
 
         await _supabase.from('votes').insert([{ poll_id: currentPoll.id, option_id: id, voter_name: myName }]);
+        syncVotes(); // 投完立即抓一次最新的全域數據
     }
 
     function updateUI() {
         const stats = {}; allVotes.forEach(x => stats[x.option_id] = (stats[x.option_id] || 0) + 1);
-        document.getElementById('voter-stats').innerText = `進度: ${allVotes.length}/${currentPoll.target_voters}`;
+        const total = allVotes.length;
+        document.getElementById('voter-stats').innerText = `進度: ${total}/${currentPoll.target_voters}`;
         
-        // 判斷是否要隱藏數值
-        // 條件：(投票模式 且 尚未結束)
         const shouldHide = (currentPoll.poll_type == 0 && !isFinished);
-
         const cont = document.getElementById('poll-options');
         cont.innerHTML = '';
+        
         Object.entries(currentPoll.options).forEach(([id, text]) => {
             const count = stats[id] || 0;
             const max = Math.max(...Object.values(stats), 1);
-            
-            // 隱藏模式下，進度條 0%，數字顯示 ?
             const per = shouldHide ? 0 : (currentPoll.poll_type == 1 ? (count / max) * 100 : (count / currentPoll.target_voters) * 100);
             const displayCount = shouldHide ? "?" : count;
 
@@ -236,21 +246,24 @@
             cont.appendChild(div);
         });
 
-        // 投票模式結算檢查
-        if (currentPoll.poll_type == 0 && allVotes.length >= currentPoll.target_voters && isGameRunning) {
-            finishGame();
-        }
+        if (currentPoll.poll_type == 0 && total >= currentPoll.target_voters && isGameRunning) finishGame();
     }
 
-    function finishGame() {
+    async function finishGame() {
+        if (isFinished) return;
         isGameRunning = false;
-        isFinished = true; // 標記為結束，讓 updateUI 顯示真實數字
+        isFinished = true;
         document.getElementById('timer-box').innerText = "結 算 中";
+        
+        // 結算瞬間，強制去資料庫抓最後一次完整的票數，確保所有人同步
+        const { data } = await _supabase.from('votes').select('option_id').eq('poll_id', currentPoll.id);
+        if (data) allVotes = data;
+        
         setTimeout(() => {
             document.getElementById('timer-box').innerText = "完 成";
-            updateUI(); // 最後一次更新，顯示所有數字
+            updateUI();
             confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 } });
-        }, 500);
+        }, 1000);
     }
 
     async function resetSystem() { 
