@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>ELITE Sync Master v11.0</title>
+    <title>ELITE Sync Master v11.0 - Fixed</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.5.1/dist/confetti.browser.min.js"></script>
     <style>
@@ -21,9 +21,9 @@
         .member-item { background: #222; padding: 10px; border-radius: 8px; font-size: 13px; display: flex; align-items: center; border: 1px solid #333; }
         
         .option-box { position: relative; background: #222; border-radius: 12px; padding: 20px; margin-bottom: 12px; overflow: hidden; border: 1px solid #333; cursor: pointer; touch-action: manipulation; }
-        .option-box:active { background: #282828; }
-        .progress-fill { position: absolute; left: 0; top: 0; bottom: 0; background: var(--glow); width: 0%; transition: width 0.1s ease-out; z-index: 1; }
-        .content { position: relative; z-index: 2; display: flex; justify-content: space-between; align-items: center; font-weight: 900; pointer-events: none; pointer-events: none; }
+        .option-box:active { background: #282828; transform: scale(0.98); }
+        .progress-fill { position: absolute; left: 0; top: 0; bottom: 0; background: var(--glow); width: 0%; transition: width 0.2s ease-out; z-index: 1; pointer-events: none; }
+        .content { position: relative; z-index: 2; display: flex; justify-content: space-between; align-items: center; font-weight: 900; pointer-events: none; }
         
         .user-chip { display: inline-block; padding: 5px 12px; border-radius: 20px; background: #111; font-size: 11px; margin: 3px; border: 1px solid #333; color: #555; transition: 0.3s; }
         .user-chip.ready { border-color: var(--theme); color: var(--theme); background: rgba(212,175,55,0.15); box-shadow: 0 0 10px var(--glow); }
@@ -136,22 +136,16 @@
         document.getElementById('mode-label').innerText = poll.poll_type == 1 ? "🔥 競技模式" : "🗳️ 投票模式";
         if (isAdmin) document.getElementById('admin-controls').classList.remove('hidden');
 
-        // 使用 Presence 進行同步，排除隨機字串，僅抓取我們定義的 ready 狀態
         syncChannel = _supabase.channel('elite_' + poll.id, { config: { presence: { key: myName } } });
         
         syncChannel.on('presence', { event: 'sync' }, () => {
             const state = syncChannel.presenceState();
             const readyNames = [];
             Object.keys(state).forEach(key => {
-                // 這裡只識別在 target_names 裡面的成員
-                if (poll.target_names.includes(key) && state[key][0]?.ready === true) {
-                    readyNames.push(key);
-                }
+                if (poll.target_names.includes(key) && state[key][0]?.ready === true) readyNames.push(key);
             });
-            
             document.getElementById('ready-list').innerHTML = poll.target_names.map(n => 
                 `<span class="user-chip ${readyNames.includes(n)?'ready':''}">${n}</span>`).join('');
-            
             document.getElementById('voter-stats').innerText = `READY: ${readyNames.length}/${poll.target_voters}`;
             if (isAdmin) document.getElementById('start-btn').disabled = (readyNames.length < poll.target_voters);
         }).on('broadcast', { event: 'go' }, (p) => { 
@@ -159,7 +153,6 @@
             runCountdown(); 
         }).subscribe(async (s) => { if(s==='SUBSCRIBED') await syncChannel.track({ ready: false }); });
 
-        // 即時監聽投票數據庫，實現分數跳動
         _supabase.channel('realtime_votes').on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'votes', filter: `poll_id=eq.${poll.id}` }, () => {
             updateUI();
         }).on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'polls' }, (payload) => {
@@ -171,9 +164,11 @@
 
         if (poll.start_at) { 
             gameEndTime = new Date(poll.end_at); 
-            isGameRunning = true;
-            document.getElementById('ready-zone').classList.add('hidden'); 
-            startTimer(); 
+            if (Date.now() < gameEndTime) {
+                isGameRunning = true;
+                document.getElementById('ready-zone').classList.add('hidden'); 
+                startTimer(); 
+            }
         }
         updateUI();
     }
@@ -188,48 +183,64 @@
     }
 
     async function broadcastStart() {
-        const end = new Date(Date.now() + currentPoll.duration_sec * 1000);
+        const end = new Date(Date.now() + (currentPoll.duration_sec + 3) * 1000); // +3s 為倒數緩衝
         await _supabase.from('polls').update({ start_at: new Date().toISOString(), end_at: end.toISOString() }).eq('id', currentPoll.id);
         syncChannel.send({ type: 'broadcast', event: 'go', payload: { end: end.toISOString() } });
     }
 
     function runCountdown() {
-        isGameRunning = true;
         document.getElementById('ready-zone').classList.add('hidden');
         const overlay = document.getElementById('sync-overlay'), num = document.getElementById('countdown-num');
         overlay.style.display = 'flex';
         let c = 3;
+        num.innerText = c;
         const t = setInterval(() => { 
             c--; 
-            num.innerText = c || 'GO!'; 
-            if(c < 0){ clearInterval(t); overlay.style.display = 'none'; updateUI(); startTimer(); }
+            if(c > 0) {
+                num.innerText = c;
+            } else if (c === 0) {
+                num.innerText = 'GO!';
+            } else {
+                clearInterval(t); 
+                overlay.style.display = 'none'; 
+                isGameRunning = true; // 倒數結束，正式允許點擊
+                updateUI(); 
+                startTimer(); 
+            }
         }, 1000);
     }
 
     function startTimer() {
         const box = document.getElementById('timer-box');
-        if (currentPoll.poll_type == 0) { box.innerText = "VOTING..."; return; }
         const iv = setInterval(() => {
             const d = (gameEndTime - Date.now())/1000;
-            if(d <= 0){ clearInterval(iv); box.innerText="FINISH"; confetti(); isGameRunning = false; }
+            if(d <= 0){ 
+                clearInterval(iv); 
+                box.innerText="FINISH"; 
+                isGameRunning = false; 
+                confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 } });
+            }
             else box.innerText = d.toFixed(1) + "s";
         }, 50);
     }
 
-    // 修正：點擊投票的核心邏輯
     async function castVote(id) {
         if (!isGameRunning) return; 
-        if (currentPoll.poll_type == 1 && (Date.now() > gameEndTime)) return;
         
-        // 如果是一人一票模式，先本地阻擋
+        // 投票模式檢查
         if (currentPoll.poll_type == 0) {
             const { data } = await _supabase.from('votes').select('id').eq('poll_id', currentPoll.id).eq('voter_name', myName);
-            if (data && data.length > 0) return alert("您已投過票");
+            if (data && data.length > 0) return; // 已投過則無反應
         }
         
-        // 插入投票
-        const { error } = await _supabase.from('votes').insert([{ poll_id: currentPoll.id, option_id: id, voter_name: myName }]);
-        if (error) console.log("Vote error:", error);
+        // 立即向資料庫寫入
+        const { error } = await _supabase.from('votes').insert([{ 
+            poll_id: currentPoll.id, 
+            option_id: id, 
+            voter_name: myName 
+        }]);
+        
+        if (error) console.error("Vote Error:", error.message);
     }
 
     async function updateUI() {
@@ -239,16 +250,15 @@
         const cont = document.getElementById('poll-options'); 
         cont.innerHTML = '';
         
-        // 即使倒數中，UI 也要準備好 HTML 結構
         Object.entries(currentPoll.options).forEach(([id, text]) => {
             const count = stats[id] || 0;
             const maxScore = Math.max(...Object.values(stats), 1);
-            const per = currentPoll.poll_type == 1 ? (count/maxScore)*100 : (count/currentPoll.target_voters)*100;
+            const total = currentPoll.target_voters || 1;
+            const per = currentPoll.poll_type == 1 ? (count/maxScore)*100 : (count/total)*100;
             
-            // 建立容器
             const div = document.createElement('div');
             div.className = 'option-box';
-            // 重要：動態綁定點擊事件
+            // 將事件直接綁在容器上
             div.onclick = () => castVote(id);
             
             div.innerHTML = `
@@ -262,7 +272,7 @@
     }
 
     async function resetSystem() { 
-        if(confirm("確定重置嗎？")) {
+        if(confirm("確定結束並清空房間嗎？")) {
             await _supabase.from('polls').delete().eq('id', currentPoll.id);
             location.reload();
         }
