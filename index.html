@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>ELITE Sync Master v13.0</title>
+    <title>ELITE Sync Master v14.0</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.5.1/dist/confetti.browser.min.js"></script>
     <style>
@@ -11,7 +11,7 @@
         body { font-family: -apple-system, sans-serif; background: var(--bg); color: #e0e0e0; margin: 0; padding: 15px; user-select: none; -webkit-tap-highlight-color: transparent; }
         .card { background: var(--card); padding: 20px; border-radius: 16px; border: 1px solid #2a2a2a; margin-bottom: 15px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
         h1 { color: var(--theme); font-size: 1.2rem; border-left: 3px solid var(--theme); padding-left: 10px; margin: 0 0 15px 0; }
-        button { width: 100%; padding: 14px; border-radius: 10px; border: none; background: var(--theme); color: #000; font-weight: 800; cursor: pointer; transition: 0.1s; }
+        button { width: 100%; padding: 14px; border-radius: 10px; border: none; background: var(--theme); color: #000; font-weight: 800; cursor: pointer; transition: 0.1s; margin-bottom: 5px; }
         button:active { transform: scale(0.96); }
         button:disabled { background: #333 !important; color: #666 !important; cursor: not-allowed; }
         input, select { width: 100%; padding: 12px; border-radius: 8px; border: 1px solid #333; background: #000; color: #fff; margin-bottom: 10px; box-sizing: border-box; }
@@ -19,20 +19,21 @@
         .member-item { background: #222; padding: 10px; border-radius: 8px; font-size: 13px; display: flex; align-items: center; border: 1px solid #333; }
         .member-item input { width: auto; margin-right: 10px; margin-bottom: 0; }
         
-        /* 投票選項樣式 */
         .option-box { position: relative; background: #222; border-radius: 12px; padding: 20px; margin-bottom: 12px; overflow: hidden; border: 2px solid #333; cursor: pointer; transition: 0.2s; touch-action: manipulation; }
         .option-box.voted { border-color: var(--theme); box-shadow: 0 0 15px var(--glow); background: #2a2a2a; }
         .progress-fill { position: absolute; left: 0; top: 0; bottom: 0; background: var(--glow); width: 0%; transition: width 0.4s cubic-bezier(0.1, 0.7, 0.1, 1); z-index: 1; pointer-events: none; }
         .content { position: relative; z-index: 2; display: flex; justify-content: space-between; align-items: center; font-weight: 900; pointer-events: none; }
-        .voted-mark { font-size: 10px; color: var(--theme); margin-top: 4px; display: none; }
+        .voted-mark { font-size: 11px; color: var(--theme); margin-top: 4px; display: none; }
         .option-box.voted .voted-mark { display: block; }
         
-        .user-chip { display: inline-block; padding: 5px 12px; border-radius: 20px; background: #111; font-size: 11px; margin: 3px; border: 1px solid #333; color: #555; }
+        .user-chip { display: inline-block; padding: 5px 12px; border-radius: 20px; background: #111; font-size: 11px; margin: 3px; border: 1px solid #333; color: #555; transition: 0.3s; }
         .user-chip.ready { border-color: var(--theme); color: var(--theme); background: rgba(212,175,55,0.15); box-shadow: 0 0 8px var(--glow); }
+        
         #sync-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); z-index: 10000; display: none; flex-direction: column; justify-content: center; align-items: center; }
         #countdown-num { font-size: 9rem; color: var(--theme); font-weight: 900; }
         .timer-display { text-align: center; font-size: 2.5rem; color: var(--red); font-weight: 900; margin: 10px 0; font-family: monospace; }
         .hidden { display: none !important; }
+        .secondary-btn { background: none; color: #777; font-size: 12px; text-decoration: underline; border: none; margin-top: 15px; cursor: pointer; }
     </style>
 </head>
 <body>
@@ -70,6 +71,7 @@
         <p id="id-name" style="color:var(--theme); font-size:13px; font-weight:bold;"></p>
         <button id="ready-btn" onclick="toggleReady()">READY 點我準備</button>
         <div id="ready-list" style="margin-top:15px;"></div>
+        <button class="secondary-btn" onclick="changeIdentity()">更換身份 / 點錯名字</button>
     </div>
 
     <div id="admin-controls" class="hidden" style="margin-top:25px; border-top:2px solid #222; padding-top:20px;">
@@ -88,23 +90,35 @@
     let currentPoll = null, myName = localStorage.getItem('elite_user'), syncChannel = null;
     let isGameRunning = false, localVotedId = null;
 
+    // 清理舊格式的名字 (如果存的是 OFF_...)
+    if (myName && myName.startsWith('OFF_')) {
+        myName = myName.replace('OFF_', '');
+        localStorage.setItem('elite_user', myName);
+    }
+
     async function init() {
         const { data: poll } = await _supabase.from('polls').select('*').order('created_at', {ascending:false}).limit(1).maybeSingle();
         if (isAdmin && !poll) return showCreate();
         if (!poll) { document.body.innerHTML = "<div class='card'><h1>🏁 房間尚未開啟</h1></div>"; return; }
+        
+        // 如果目前存的名字不在這場比賽的名單內，強制重新選
+        if (myName && !poll.target_names.includes(myName)) {
+            localStorage.removeItem('elite_user');
+            myName = null;
+        }
+
         if (!myName) showLogin(poll); else loadPoll(poll);
     }
 
     async function showCreate() {
         document.getElementById('create-view').classList.remove('hidden');
         const { data: players } = await _supabase.from('players').select('name');
-        // 過濾前綴與自動勾選
         document.getElementById('member-checkboxes').innerHTML = (players || []).map(p => {
             const isOff = p.name.startsWith('OFF_');
             const cleanName = p.name.replace('OFF_', '');
             return `<div class='member-item'>
                 <input type='checkbox' class='m-chk' value='${cleanName}' ${isOff ? '' : 'checked'}> 
-                ${cleanName} ${isOff ? '<span style="color:#555">(離線)</span>' : ''}
+                ${cleanName} ${isOff ? '<span style="color:#555">(離)</span>' : ''}
             </div>`;
         }).join('');
     }
@@ -124,10 +138,11 @@
 
     function showLogin(poll) {
         document.getElementById('login-view').classList.remove('hidden');
-        document.getElementById('user-select-list').innerHTML = poll.target_names.map(n => 
+        document.getElementById('user-select-list').innerHTML = (poll.target_names || []).map(n => 
             `<button onclick="setMe('${n}')" style="background:#222; margin-bottom:10px; border:1px solid #333;">${n}</button>`).join('');
     }
     function setMe(n) { localStorage.setItem('elite_user', n); location.reload(); }
+    function changeIdentity() { localStorage.removeItem('elite_user'); location.reload(); }
 
     async function loadPoll(poll) {
         currentPoll = poll;
@@ -137,27 +152,32 @@
         document.getElementById('mode-label').innerText = poll.poll_type == 1 ? "🔥 競技模式" : "🗳️ 投票模式";
         if (isAdmin) document.getElementById('admin-controls').classList.remove('hidden');
 
-        // 檢查是否已投過票 (讀取資料庫)
-        const { data: v } = await _supabase.from('votes').select('option_id').eq('poll_id', poll.id).eq('voter_name', myName).maybeSingle();
-        if (v) localVotedId = v.option_id;
-
-        // Presence 同步
+        // 同步 Presence (使用 cleanName 作為 Key)
         syncChannel = _supabase.channel('room_' + poll.id, { config: { presence: { key: myName } } });
         syncChannel.on('presence', { event: 'sync' }, () => {
             const state = syncChannel.presenceState();
             const readyNames = Object.keys(state).filter(k => state[k][0]?.ready);
-            document.getElementById('ready-list').innerHTML = poll.target_names.map(n => 
+            
+            document.getElementById('ready-list').innerHTML = (poll.target_names || []).map(n => 
                 `<span class="user-chip ${readyNames.includes(n)?'ready':''}">${n}</span>`).join('');
+            
             if (isAdmin) document.getElementById('start-btn').disabled = (readyNames.length < poll.target_voters);
         }).on('broadcast', { event: 'go' }, () => startUIFlow()).subscribe(async (s) => {
             if(s==='SUBSCRIBED') await syncChannel.track({ ready: false });
         });
 
-        // 資料庫即時監聽 (Realtime)
+        // 監聽即時數據
         _supabase.channel('db_sync').on('postgres_changes', { event: '*', schema: 'public', table: 'votes', filter: `poll_id=eq.${poll.id}` }, () => updateUI())
         .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'polls', filter: `id=eq.${poll.id}` }, (payload) => {
             if (payload.new.start_at && !isGameRunning) startUIFlow();
         }).on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'polls' }, () => location.reload()).subscribe();
+
+        // 獲取初始票數並檢查自己是否投過
+        const { data: v } = await _supabase.from('votes').select('option_id, voter_name').eq('poll_id', poll.id);
+        if (v) {
+            const myVote = v.find(x => x.voter_name === myName);
+            if (myVote) localVotedId = myVote.option_id;
+        }
 
         if (poll.start_at) startUIFlow(true);
         updateUI();
@@ -175,15 +195,14 @@
     async function broadcastStart() {
         const end = new Date(Date.now() + (currentPoll.duration_sec + 4) * 1000).toISOString();
         await _supabase.from('polls').update({ start_at: new Date().toISOString(), end_at: end }).eq('id', currentPoll.id);
-        syncChannel.send({ type: 'broadcast', event: 'go', payload: {} });
+        syncChannel.send({ type: 'broadcast', event: 'go' });
     }
 
     function startUIFlow(isResume = false) {
         isGameRunning = true;
         document.getElementById('ready-zone').classList.add('hidden');
-        if (isResume) {
-            runGameLogic();
-        } else {
+        if (isResume) runGameLogic();
+        else {
             const overlay = document.getElementById('sync-overlay'), num = document.getElementById('countdown-num');
             overlay.style.display = 'flex';
             let c = 3;
@@ -211,21 +230,14 @@
         if (!isGameRunning) return;
         if (currentPoll.poll_type == 0 && localVotedId) return;
 
-        // 本地立即反饋：改顏色、鎖定點擊
         if (currentPoll.poll_type == 0) {
             localVotedId = id;
             updateUI(); 
         }
 
-        const { error } = await _supabase.from('votes').insert([{ 
+        await _supabase.from('votes').insert([{ 
             poll_id: currentPoll.id, option_id: id, voter_name: myName 
         }]);
-
-        if (error) {
-            console.error("投票失敗", error.message);
-            localVotedId = null; // 失敗時解鎖
-            updateUI();
-        }
     }
 
     async function updateUI() {
@@ -233,7 +245,6 @@
         const votes = v || [];
         const stats = {}; votes.forEach(x => stats[x.option_id] = (stats[x.option_id] || 0) + 1);
         
-        // 更新統計文字
         document.getElementById('voter-stats').innerText = `進度: ${votes.length}/${currentPoll.target_voters}`;
         
         const cont = document.getElementById('poll-options');
@@ -252,14 +263,13 @@
                 <div class="content">
                     <div>
                         <div>${text}</div>
-                        <div class="voted-mark">● 您已選擇此項</div>
+                        <div class="voted-mark">✓ 已選擇</div>
                     </div>
                     <div style="font-size:1.5rem; color:var(--theme)">${count}</div>
                 </div>`;
             cont.appendChild(div);
         });
 
-        // 投票模式檢查結束
         if (currentPoll.poll_type == 0 && votes.length >= currentPoll.target_voters && isGameRunning) {
             finishGame();
         }
@@ -272,7 +282,7 @@
     }
 
     async function resetSystem() { 
-        if(confirm("確定結束此房間並清除所有資料嗎？")) {
+        if(confirm("確定結束並清除房間嗎？")) {
             await _supabase.from('polls').delete().eq('id', currentPoll.id);
             location.reload();
         }
