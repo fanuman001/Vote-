@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>ELITE Sync Master v17.0</title>
+    <title>ELITE Sync Master v18.0</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.5.1/dist/confetti.browser.min.js"></script>
     <style>
@@ -18,10 +18,10 @@
         .member-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 15px; }
         .member-item { background: #222; padding: 10px; border-radius: 8px; font-size: 13px; display: flex; align-items: center; border: 1px solid #333; }
         .member-item input { width: auto; margin-right: 10px; margin-bottom: 0; }
-        .option-box { position: relative; background: #222; border-radius: 12px; padding: 20px; margin-bottom: 12px; overflow: hidden; border: 2px solid #333; cursor: pointer; transition: 0.2s; touch-action: manipulation; }
+        .option-box { position: relative; background: #222; border-radius: 12px; padding: 20px; margin-bottom: 12px; overflow: hidden; border: 2px solid #333; cursor: pointer; transition: 0.2s; touch-action: manipulation; min-height: 60px; }
         .option-box.voted { border-color: var(--theme); box-shadow: 0 0 15px var(--glow); background: #2a2a2a; }
         .progress-fill { position: absolute; left: 0; top: 0; bottom: 0; background: var(--glow); width: 0%; transition: width 0.4s cubic-bezier(0.1, 0.7, 0.1, 1); z-index: 1; pointer-events: none; }
-        .content { position: relative; z-index: 2; display: flex; justify-content: space-between; align-items: center; font-weight: 900; pointer-events: none; }
+        .content { position: relative; z-index: 2; display: flex; justify-content: space-between; align-items: center; font-weight: 900; pointer-events: none; width: 100%; }
         .voted-mark { font-size: 11px; color: var(--theme); margin-top: 4px; display: none; }
         .option-box.voted .voted-mark { display: block; }
         .user-chip { display: inline-block; padding: 5px 12px; border-radius: 20px; background: #111; font-size: 11px; margin: 3px; border: 1px solid #333; color: #555; transition: 0.3s; }
@@ -99,9 +99,8 @@
         document.getElementById('create-view').classList.remove('hidden');
         const { data: players } = await _supabase.from('players').select('name');
         document.getElementById('member-checkboxes').innerHTML = (players || []).map(p => {
-            const isOff = p.name.startsWith('OFF_');
             const cleanName = p.name.replace('OFF_', '');
-            return `<div class='member-item'><input type='checkbox' class='m-chk' value='${cleanName}' ${isOff ? '' : 'checked'}> ${cleanName}</div>`;
+            return `<div class='member-item'><input type='checkbox' class='m-chk' value='${cleanName}' checked> ${cleanName}</div>`;
         }).join('');
     }
 
@@ -127,13 +126,9 @@
         document.getElementById('mode-label').innerText = poll.poll_type == 1 ? "🔥 競技模式" : "🗳️ 投票模式";
         if (isAdmin) document.getElementById('admin-controls').classList.remove('hidden');
 
-        // 強制監聽所有資料變動
-        _supabase.channel('public:votes').on('postgres_changes', { event: '*', schema: 'public', table: 'votes' }, (payload) => {
-            console.log("票數變動訊號收到:", payload);
-            syncVotes();
-        }).subscribe();
-
-        _supabase.channel('public:polls').on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'polls' }, (p) => { 
+        // Realtime 監聽
+        _supabase.channel('db-changes').on('postgres_changes', { event: '*', schema: 'public', table: 'votes' }, () => syncVotes()).subscribe();
+        _supabase.channel('poll-changes').on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'polls' }, (p) => { 
             if(p.new.start_at && !isGameRunning) startUIFlow(); 
         }).subscribe();
 
@@ -145,15 +140,15 @@
             if (isAdmin) document.getElementById('start-btn').disabled = (readyNames.length < poll.target_voters);
         }).on('broadcast', { event: 'go' }, () => startUIFlow()).subscribe(async (s) => { if(s==='SUBSCRIBED') await syncChannel.track({ ready: false }); });
 
-        // 每 2 秒強制抓取一次 (保底機制，防止 Realtime 斷線)
-        setInterval(() => { if(isGameRunning && !isFinished) syncVotes(); }, 2000);
+        // 保底同步：每秒抓取一次，解決不跳動問題
+        setInterval(() => { if(isGameRunning && !isFinished) syncVotes(); }, 1500);
 
         await syncVotes();
         if (poll.start_at) startUIFlow(true);
     }
 
     async function syncVotes() {
-        const { data, error } = await _supabase.from('votes').select('option_id, voter_name').eq('poll_id', currentPoll.id);
+        const { data } = await _supabase.from('votes').select('option_id, voter_name').eq('poll_id', currentPoll.id);
         if (data) {
             allVotes = data;
             const myVote = allVotes.find(x => x.voter_name === myName);
@@ -164,9 +159,11 @@
 
     async function toggleReady() {
         const btn = document.getElementById('ready-btn');
-        const isR = !btn.classList.contains('active');
         btn.classList.toggle('active');
+        const isR = btn.classList.contains('active');
         btn.innerText = isR ? "✓ 已就緒" : "READY 點我準備";
+        btn.style.background = isR ? "#1a4a1a" : "var(--theme)";
+        btn.style.color = isR ? "#fff" : "#000";
         await syncChannel.track({ ready: isR });
     }
 
@@ -193,30 +190,33 @@
     }
 
     function runGameLogic() {
-        if (currentPoll.poll_type == 0) document.getElementById('timer-box').innerText = "投票中...";
-        else {
+        if (currentPoll.poll_type == 0) {
+            document.getElementById('timer-box').innerText = "請投票";
+        } else {
             const iv = setInterval(() => {
                 const d = (new Date(currentPoll.end_at) - Date.now()) / 1000;
                 if (d <= 0) { clearInterval(iv); finishGame(); }
                 else document.getElementById('timer-box').innerText = d.toFixed(1) + "s";
             }, 100);
         }
+        updateUI();
     }
 
     async function castVote(id) {
         if (!isGameRunning || isFinished) return;
         if (currentPoll.poll_type == 0 && localVotedId) return;
 
-        // 競技模式下本地先跑顯示，優化體感
+        // 本地立即反饋
         if (currentPoll.poll_type === 1) {
             allVotes.push({ option_id: id, voter_name: myName });
-            updateUI();
         } else {
-            localVotedId = id; // 投票模式鎖定按鈕
+            localVotedId = id;
         }
+        updateUI();
 
-        await _supabase.from('votes').insert([{ poll_id: currentPoll.id, option_id: id, voter_name: myName }]);
-        syncVotes(); // 投完立即抓一次最新的全域數據
+        // 送出到資料庫
+        const { error } = await _supabase.from('votes').insert([{ poll_id: currentPoll.id, option_id: id, voter_name: myName }]);
+        if (!error) syncVotes();
     }
 
     function updateUI() {
@@ -224,15 +224,26 @@
         const total = allVotes.length;
         document.getElementById('voter-stats').innerText = `進度: ${total}/${currentPoll.target_voters}`;
         
-        const shouldHide = (currentPoll.poll_type == 0 && !isFinished);
+        // 關鍵：只有在「投票中」且是「投票模式」才隱藏數字
+        const shouldHide = (currentPoll.poll_type == 0 && isGameRunning && !isFinished);
         const cont = document.getElementById('poll-options');
         cont.innerHTML = '';
         
         Object.entries(currentPoll.options).forEach(([id, text]) => {
             const count = stats[id] || 0;
             const max = Math.max(...Object.values(stats), 1);
-            const per = shouldHide ? 0 : (currentPoll.poll_type == 1 ? (count / max) * 100 : (count / currentPoll.target_voters) * 100);
-            const displayCount = shouldHide ? "?" : count;
+            
+            // 計算顯示數值
+            let per = 0;
+            let displayCount = count;
+
+            if (shouldHide) {
+                per = 0;
+                displayCount = "?";
+            } else {
+                per = (currentPoll.poll_type == 1) ? (count / max) * 100 : (count / currentPoll.target_voters) * 100;
+                displayCount = count;
+            }
 
             const div = document.createElement('div');
             div.className = `option-box ${localVotedId == id ? 'voted' : ''}`;
@@ -240,13 +251,19 @@
             div.innerHTML = `
                 <div class="progress-fill" style="width:${per}%"></div>
                 <div class="content">
-                    <div><div>${text}</div><div class="voted-mark">✓ 已選擇</div></div>
-                    <div style="font-size:1.5rem; color:var(--theme)">${displayCount}</div>
+                    <div style="text-align:left">
+                        <div style="font-size:1.1rem">${text}</div>
+                        <div class="voted-mark">✓ 已選擇</div>
+                    </div>
+                    <div style="font-size:1.8rem; color:var(--theme)">${displayCount}</div>
                 </div>`;
             cont.appendChild(div);
         });
 
-        if (currentPoll.poll_type == 0 && total >= currentPoll.target_voters && isGameRunning) finishGame();
+        // 投票模式自動結算
+        if (currentPoll.poll_type == 0 && total >= currentPoll.target_voters && isGameRunning) {
+            finishGame();
+        }
     }
 
     async function finishGame() {
@@ -255,7 +272,7 @@
         isFinished = true;
         document.getElementById('timer-box').innerText = "結 算 中";
         
-        // 結算瞬間，強制去資料庫抓最後一次完整的票數，確保所有人同步
+        // 結算強制抓取數據
         const { data } = await _supabase.from('votes').select('option_id').eq('poll_id', currentPoll.id);
         if (data) allVotes = data;
         
@@ -263,7 +280,7 @@
             document.getElementById('timer-box').innerText = "完 成";
             updateUI();
             confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 } });
-        }, 1000);
+        }, 800);
     }
 
     async function resetSystem() { 
