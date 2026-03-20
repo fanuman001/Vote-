@@ -2,13 +2,12 @@
 <html lang="zh-Hant">
 <head>
     <meta charset="UTF-8">
-    <title>工業標記定位工具 v5.0 (XP相容)</title>
+    <title>工業標記定位工具 v7.0 (XP相容)</title>
     <style>
         body { font-family: "Microsoft JhengHei", Arial, sans-serif; margin: 0; padding: 15px; background: #e0e0e0; font-size: 14px; }
         .controls { background: white; padding: 20px; border-radius: 10px; box-shadow: 0 4px 10px rgba(0,0,0,0.2); max-width: 950px; margin: 0 auto 20px auto; }
         .section { border-bottom: 1px dashed #ccc; padding: 10px 0; clear: both; }
         
-        /* XP 傳統佈局 */
         .left-col { float: left; width: 48%; }
         .right-col { float: right; width: 48%; }
         .clearfix { clear: both; }
@@ -18,29 +17,27 @@
         .preset-area { background: #f8f9fa; padding: 10px; border: 1px solid #ddd; }
         .preset-chip { cursor: pointer; display: inline-block; padding: 5px 12px; background: #007bff; color: white; border-radius: 15px; font-size: 12px; margin: 3px; }
 
-        /* 清單編輯區 */
         .queue-table { width: 100%; border-collapse: collapse; margin-top: 10px; background: #fff; }
         .queue-table th, .queue-table td { border: 1px solid #ddd; padding: 5px; text-align: center; }
         .queue-table input { width: 85%; padding: 3px; border: 1px solid #eee; text-align: center; }
 
-        /* 列印頁面設定 */
         .page { background: white; position: relative; margin: 20px auto; border: 1px solid #999; box-sizing: border-box; page-break-after: always; overflow: hidden; }
         .A4 { width: 210mm; height: 297mm; }
         .A3 { width: 420mm; height: 297mm; }
 
-        /* 標記樣式：文字在前，圖示在後 */
+        /* 列印樣式：文字在前，圖示在後 */
         .print-item { position: absolute; display: block; white-space: nowrap; line-height: 1; }
         .label-text { display: inline-block; vertical-align: middle; font-weight: bold; margin-right: 5px; }
         
-        /* 圖示主體：確保內部文字置中 */
+        /* 導角/印章圖示主體 */
         .icon-box { 
             position: relative; border: 2px solid #000; background: #fff;
             display: inline-block; vertical-align: middle;
             font-weight: bold; overflow: hidden;
-            text-align: center; /* 水平置中 */
+            text-align: center;
         }
         
-        /* 導角遮罩：強化裁切線條 */
+        /* 導角遮罩 */
         .mask { position: absolute; width: 85%; height: 85%; background: white; border: 3px solid #000; box-sizing: border-box; transform: rotate(45deg); -ms-transform: rotate(45deg); -webkit-transform: rotate(45deg); }
         .m-tl { top: -60%; left: -60%; } .m-tr { top: -60%; right: -60%; }
         .m-bl { bottom: -60%; left: -60%; } .m-br { bottom: -60%; right: -60%; }
@@ -61,44 +58,51 @@
             規格：<select id="paperSize" onchange="generate()"><option value="A4">A4 (直)</option><option value="A3">A3 (橫)</option></select>
             總張數：<input type="number" id="totalPage" value="1" style="width:50px" oninput="generate()">
             間隔：<input type="number" id="interval" value="1" style="width:40px" oninput="generate()">
-            <p style="font-size: 11px; color: #666; margin: 5px 0;">(間隔1=每張印；間隔2=印1,3,5...)</p>
         </div>
         <div class="right-col">
-            <h4>2. 常用欄位 (自動平移)</h4>
+            <h4>2. 常用導角 (自動平移 25mm)</h4>
             <div class="preset-area">
                 <span class="preset-chip" onclick="quickAdd('16mil 1/E', '1', 3)">16mil 1/E (左下)</span>
                 <span class="preset-chip" onclick="quickAdd('4mil E/H', 'E', 3)">4mil E/H (左下)</span>
-                <span class="preset-chip" onclick="quickAdd('16mil 1/E', '1', 5)">16mil 1/E (右上直角)</span>
-                <span class="preset-chip" onclick="quickAdd('4mil E/H', 'E', 5)">4mil E/H (右上直角)</span>
             </div>
         </div>
         <div class="clearfix"></div>
     </div>
 
     <div class="section">
-        <h4>3. 自訂新增品項 (文字在前，圖示在後)</h4>
-        文字：<input type="text" id="inTxt" value="標記內容" style="width:120px">
-        內部：<input type="text" id="inNum" value="1" style="width:30px">
-        X (mm)：<input type="number" id="inX" value="20" style="width:40px">
-        Y (mm)：<input type="number" id="inY" value="20" style="width:40px">
-        大小：<input type="number" id="inSize" value="25" style="width:40px">px
-        
-        <div class="corner-picker" id="cornerPicker"></div>
+        <div class="left-col">
+            <h4>3. 自訂新增 (導角標記)</h4>
+            文字：<input type="text" id="inTxt" value="標記內容" style="width:120px">
+            內部：<input type="text" id="inNum" value="1" style="width:30px">
+            X：<input type="number" id="inX" value="20" style="width:40px">
+            Y：<input type="number" id="inY" value="20" style="width:40px">
+            大小：<input type="number" id="inSize" value="25" style="width:40px">px
+            <div class="corner-picker" id="cornerPicker"></div>
+            <div class="clearfix"></div>
+            <button onclick="addItemLogic()" style="background:#007bff; color:white; border:none; padding:8px 15px; cursor:pointer; margin-top:10px;">＋ 加入清單</button>
+        </div>
+        <div class="right-col">
+            <h4>4. 作業印章 (人員/數量)</h4>
+            人員：<input type="text" id="stampTxt" value="城乙資訊" style="width:100px">
+            數量：<input type="text" id="stampNum" value="1" style="width:30px">
+            <p style="font-size: 11px; color: #666;">※ 印章為方框樣式，無導角切痕。</p>
+            <button onclick="addStamp()" style="background:#e74c3c; color:white; border:none; padding:10px 20px; cursor:pointer; font-weight:bold; border-radius:5px;">＋ 加入印章</button>
+        </div>
         <div class="clearfix"></div>
-        <button onclick="addItemLogic()" style="background:#007bff; color:white; border:none; padding:8px 15px; cursor:pointer; margin-top:10px;">＋ 加入清單</button>
     </div>
 
     <div class="section">
         <div style="float:left"><h4>待列印清單</h4></div>
         <div style="float:right">
-            <button onclick="setAllSize(25)" style="background:#f39c12; color:white; border:none; padding:5px 10px; cursor:pointer;">一鍵全部大小: 25px</button>
+            一鍵更改大小：<input type="number" id="batchSize" value="25" style="width:45px"> px 
+            <button onclick="setAllSize()" style="background:#f39c12; color:white; border:none; padding:5px 10px; cursor:pointer;">執行</button>
         </div>
         <div class="clearfix"></div>
         
         <table class="queue-table">
             <thead>
                 <tr style="background:#eee">
-                    <th>文字內容</th><th>內部文字</th><th>X(mm)</th><th>Y(mm)</th><th>大小(px)</th><th>導角</th><th>操作</th>
+                    <th>人員/文字</th><th>數量/內部</th><th>X(mm)</th><th>Y(mm)</th><th>大小(px)</th><th>類型</th><th>操作</th>
                 </tr>
             </thead>
             <tbody id="queueBody"></tbody>
@@ -116,6 +120,7 @@
     var queue = [];
     var selectedCornerType = 3; 
     var cornerDefs = {
+        0: [0,0,0,0], // 印章專用：無導角
         1: [0,0,1,1], 2: [1,1,1,1], 3: [0,0,1,0], 4: [0,0,0,1],
         5: [1,0,1,1], 6: [0,1,1,1], 7: [1,0,0,1]
     };
@@ -140,7 +145,6 @@
     }
 
     function createIconHtml(size, num, corners) {
-        // 使用 line-height 等於 size 達成垂直置中
         var html = '<div class="icon-box" style="width:'+size+'px;height:'+size+'px;line-height:'+(size-2)+'px;font-size:'+(size*0.6)+'px;">' + num;
         if(corners[0]) html += '<div class="mask m-tl"></div>';
         if(corners[1]) html += '<div class="mask m-tr"></div>';
@@ -150,7 +154,6 @@
         return html;
     }
 
-    // 通用的加入清單邏輯 (包含自動平移)
     function addItemLogic(customData) {
         var txt = customData ? customData.txt : document.getElementById('inTxt').value;
         var num = customData ? customData.num : document.getElementById('inNum').value;
@@ -159,11 +162,11 @@
         var x = customData ? customData.x : parseFloat(document.getElementById('inX').value);
         var y = customData ? customData.y : parseFloat(document.getElementById('inY').value);
 
-        // 防覆蓋：如果與最後一項座標重合，自動右移 65mm
+        // 防覆蓋位移邏輯：25mm
         if (queue.length > 0) {
             var last = queue[queue.length - 1];
             if (last.x === x && last.y === y) {
-                x = last.x + 65;
+                x = last.x + 25;
             }
         }
 
@@ -175,7 +178,15 @@
         addItemLogic({ txt: txt, num: num, corner: cornerIdx, x: 20, y: 20, size: 25 });
     }
 
-    function setAllSize(newSize) {
+    // 印章功能：corner = 0 代表純方框
+    function addStamp() {
+        var sNum = document.getElementById('stampNum').value;
+        var sTxt = document.getElementById('stampTxt').value;
+        addItemLogic({ txt: sTxt, num: sNum, corner: 0, x: 20, y: 20, size: 25 });
+    }
+
+    function setAllSize() {
+        var newSize = parseInt(document.getElementById('batchSize').value);
         for(var i=0; i<queue.length; i++) { queue[i].size = newSize; }
         updateQueueUI();
     }
@@ -186,10 +197,10 @@
         for(var i=0; i<queue.length; i++) {
             var item = queue[i];
             var tr = document.createElement('tr');
-            var optHtml = '';
+            var optHtml = '<option value="0" '+(item.corner==0?'selected':'')+'>印章</option>';
             for(var k=1; k<=7; k++) {
                 var sel = (item.corner == k) ? 'selected' : '';
-                optHtml += '<option value="'+k+'" '+sel+'>'+k+'</option>';
+                optHtml += '<option value="'+k+'" '+sel+'>'+k+'號導角</option>';
             }
             tr.innerHTML = 
                 '<td><input type="text" value="'+item.txt+'" onchange="editItem('+i+',\'txt\',this.value)"></td>' +
@@ -232,7 +243,7 @@
                     el.style.top = item.y + 'mm';
                     
                     var icon = createIconHtml(item.size, item.num, cornerDefs[item.corner]);
-                    // 修改內容順序：文字先行，圖示在後
+                    // 內容順序：文字在前（人員），圖示在後（數量方框）
                     el.innerHTML = '<span class="label-text" style="font-size:'+(item.size*0.5)+'px;">'+item.txt+'</span>' + icon;
                     page.appendChild(el);
                 }
