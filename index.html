@@ -2,46 +2,50 @@
 <html lang="zh-Hant">
 <head>
     <meta charset="UTF-8">
-    <title>離線標記列印工具</title>
+    <title>工業標記離線列印工具</title>
     <style>
-        /* 控制顯示與列印的基礎設定 */
-        body { font-family: "Microsoft JhengHei", Arial, sans-serif; margin: 0; padding: 20px; background: #f0f0f0; }
-        .controls { background: white; padding: 15px; border-radius: 8px; margin-bottom: 20px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
-        .controls input, .controls select { margin-right: 10px; margin-bottom: 10px; }
+        body { font-family: "Microsoft JhengHei", sans-serif; margin: 0; padding: 15px; background: #e0e0e0; font-size: 14px; }
+        .controls { background: white; padding: 20px; border-radius: 10px; box-shadow: 0 4px 10px rgba(0,0,0,0.2); max-width: 900px; margin: 0 auto 20px auto; }
+        .section { border-bottom: 1px dashed #ccc; padding: 10px 0; margin-bottom: 10px; }
+        .section:last-child { border: none; }
+        h4 { margin: 0 0 10px 0; color: #333; }
+        
+        input[type="number"], input[type="text"] { width: 80px; padding: 5px; border: 1px solid #ccc; }
+        .preset-btn { background: #007bff; color: white; border: none; padding: 5px 10px; cursor: pointer; border-radius: 4px; margin: 2px; }
+        .preset-btn:hover { background: #0056b3; }
 
-        /* 列印頁面設定 */
-        .page {
-            background: white;
-            position: relative;
-            margin: 0 auto 20px auto;
-            border: 1px solid #ccc;
-            box-sizing: border-box;
-            overflow: hidden;
-            page-break-after: always;
-        }
-
-        /* A4 與 A3 尺寸定義 (96 DPI 換算) */
+        /* 列印頁面 */
+        .page { background: white; position: relative; margin: 20px auto; border: 1px solid #999; box-sizing: border-box; page-break-after: always; }
         .A4 { width: 210mm; height: 297mm; }
         .A3 { width: 297mm; height: 420mm; }
 
-        /* 導角圖示與文字容器 */
-        .content-item {
-            position: absolute;
+        /* 導角圖示核心樣式 */
+        .item-container { position: absolute; display: flex; align-items: center; border: 1px dashed transparent; }
+        .icon-box { 
+            position: relative; 
+            border: 2px solid #000; 
+            background: #fff;
             display: flex;
             align-items: center;
+            justify-content: center;
+            font-weight: bold;
         }
         
-        /* 導角圖示樣式 */
-        .corner-icon {
-            width: 20px;
-            height: 20px;
-            border: 2px solid #000;
-            border-top-left-radius: 8px; /* 模擬導角 */
-            margin-right: 5px;
-        }
+        /* 導角遮罩實作 (相容舊瀏覽器) */
+        .corner { position: absolute; width: 35%; height: 35%; background: white; border: 2px solid #000; box-sizing: border-box; }
+        .tl { top: -2px; left: -2px; border-right: none; border-bottom: none; transform: rotate(-45deg) translate(-25%, -25%); border-top: none; border-left: 2px solid black; } /* 簡化版導角 */
+        
+        /* 使用斜線代表導角 */
+        .slash { position: absolute; width: 141%; height: 2px; background: black; transform-origin: center; }
+        .s-tl { top: 15%; left: -20%; transform: rotate(-45deg); }
+        .s-tr { top: 15%; right: -20%; transform: rotate(45deg); }
+        .s-bl { bottom: 15%; left: -20%; transform: rotate(45deg); }
+        .s-br { bottom: 15%; right: -20%; transform: rotate(-45deg); }
+
+        .label-text { margin-left: 10px; white-space: nowrap; font-weight: bold; }
 
         @media print {
-            .controls { display: none; } /* 列印時隱藏控制欄 */
+            .controls { display: none; }
             body { background: white; padding: 0; }
             .page { margin: 0; border: none; }
         }
@@ -50,57 +54,110 @@
 <body>
 
 <div class="controls">
-    <h3>列印設定</h3>
-    紙張規格：
-    <select id="paperSize">
-        <option value="A4">A4 (210x297mm)</option>
-        <option value="A3">A3 (297x420mm)</option>
-    </select>
-    內容：<input type="text" id="inputText" placeholder="請輸入文字" value="測試文字">
-    <br>
-    座標 X (mm)：<input type="number" id="posX" value="50">
-    座標 Y (mm)：<input type="number" id="posY" value="50">
-    <br>
-    列印總張數：<input type="number" id="totalPage" value="5">
-    每隔幾張列印：<input type="number" id="interval" value="1" min="1"> (1 代表每張都印)
-    <br>
-    <button onclick="generatePages()">生成預覽</button>
-    <button onclick="window.print()">執行列印</button>
+    <div class="section">
+        <h4>1. 基本設定</h4>
+        規格：<select id="paperSize"><option value="A4">A4</option><option value="A3">A3</option></select>
+        總張數：<input type="number" id="totalPage" value="1">
+        間隔：<input type="number" id="interval" value="1"> (1=每張印)
+        座標 X：<input type="number" id="posX" value="20"> mm
+        座標 Y：<input type="number" id="posY" value="20"> mm
+    </div>
+
+    <div class="section">
+        <h4>2. 內容與尺寸</h4>
+        文字內容：<input type="text" id="inputText" style="width: 200px;" value="16mil 1/E">
+        圖示大小：<input type="number" id="iconSize" value="30"> px
+        字體大小：<input type="number" id="fontSize" value="16"> px
+        圖內編號：<input type="text" id="innerNum" style="width: 40px;" value="1">
+    </div>
+
+    <div class="section">
+        <h4>3. 導角選擇 (勾選代表該處「要導角」)</h4>
+        <input type="checkbox" id="c_tl"> 左上 (Top-Left)
+        <input type="checkbox" id="c_tr"> 右上 (Top-Right) <br>
+        <input type="checkbox" id="c_bl" checked> 左下 (Bottom-Left)
+        <input type="checkbox" id="c_br" checked> 右下 (Bottom-Right)
+    </div>
+
+    <div class="section">
+        <h4>4. 常用快捷欄位</h4>
+        <button class="preset-btn" onclick="setPreset('16mil 1/E', '1', [0,0,1,1])">16mil 1/E (導左下右下/內1)</button>
+        <button class="preset-btn" onclick="setPreset('4mil E/H', 'E', [0,0,1,0])">4mil E/H (導左下/內E)</button>
+        <button class="preset-btn" onclick="setPreset('16mil 1/E', '1', [1,0,1,1])">16mil 1/E (右上不導/內1)</button>
+        <button class="preset-btn" onclick="setPreset('4mil E/H', 'E', [1,0,1,1])">4mil E/H (右上不導/內E)</button>
+        <button class="preset-btn" onclick="setPreset('自訂', '', [1,1,1,1])">全導角</button>
+    </div>
+
+    <button onclick="generate()" style="background: #28a745; color: white; padding: 10px 20px; border: none; cursor: pointer; font-size: 16px;">生成預覽</button>
+    <button onclick="window.print()" style="padding: 10px 20px; font-size: 16px;">執行列印</button>
 </div>
 
 <div id="printArea"></div>
 
 <script>
-    function generatePages() {
-        const paperSize = document.getElementById('paperSize').value;
-        const text = document.getElementById('inputText').value;
-        const x = document.getElementById('posX').value;
-        const y = document.getElementById('posY').value;
-        const total = parseInt(document.getElementById('totalPage').value);
-        const interval = parseInt(document.getElementById('interval').value);
+    function setPreset(text, inner, corners) {
+        document.getElementById('inputText').value = text;
+        document.getElementById('innerNum').value = inner;
+        document.getElementById('c_tl').checked = corners[0];
+        document.getElementById('c_tr').checked = corners[1];
+        document.getElementById('c_bl').checked = corners[2];
+        document.getElementById('c_br').checked = corners[3];
+        generate();
+    }
+
+    function generate() {
+        var area = document.getElementById('printArea');
+        area.innerHTML = '';
         
-        const area = document.getElementById('printArea');
-        area.innerHTML = ''; // 清除舊內容
+        var total = parseInt(document.getElementById('totalPage').value);
+        var interval = parseInt(document.getElementById('interval').value);
+        var size = document.getElementById('iconSize').value + 'px';
+        
+        for (var i = 1; i <= total; i++) {
+            var page = document.createElement('div');
+            page.className = 'page ' + document.getElementById('paperSize').value;
 
-        for (let i = 1; i <= total; i++) {
-            const page = document.createElement('div');
-            page.className = 'page ' + paperSize;
-
-            // 判斷是否為間隔張數需要寫入內容
             if ((i - 1) % interval === 0) {
-                const item = document.createElement('div');
-                item.className = 'content-item';
-                item.style.left = x + 'mm';
-                item.style.top = y + 'mm';
-                
-                // 插入導角圖示與文字
-                item.innerHTML = '<div class="corner-icon"></div><span>' + text + ' (第' + i + '張)</span>';
-                page.appendChild(item);
-            }
+                var container = document.createElement('div');
+                container.className = 'item-container';
+                container.style.left = document.getElementById('posX').value + 'mm';
+                container.style.top = document.getElementById('posY').value + 'mm';
 
+                // 建立圖示框
+                var box = document.createElement('div');
+                box.className = 'icon-box';
+                box.style.width = size;
+                box.style.height = size;
+                box.style.fontSize = (parseInt(document.getElementById('fontSize').value) * 0.8) + 'px';
+                box.innerHTML = document.getElementById('innerNum').value;
+
+                // 繪製導角斜線
+                if(document.getElementById('c_tl').checked) addSlash(box, 's-tl');
+                if(document.getElementById('c_tr').checked) addSlash(box, 's-tr');
+                if(document.getElementById('c_bl').checked) addSlash(box, 's-bl');
+                if(document.getElementById('c_br').checked) addSlash(box, 's-br');
+
+                var txt = document.createElement('div');
+                txt.className = 'label-text';
+                txt.style.fontSize = document.getElementById('fontSize').value + 'px';
+                txt.innerHTML = document.getElementById('inputText').value;
+
+                container.appendChild(box);
+                container.appendChild(txt);
+                page.appendChild(container);
+            }
             area.appendChild(page);
         }
     }
+
+    function addSlash(parent, className) {
+        var s = document.createElement('div');
+        s.className = 'slash ' + className;
+        parent.appendChild(s);
+    }
+    
+    // 初始生成一次
+    generate();
 </script>
 
 </body>
