@@ -2,70 +2,39 @@
 <html lang="zh-Hant">
 <head>
     <meta charset="UTF-8">
-    <title>物料匯整表列印工具</title>
+    <title>精確定位標記工具</title>
     <style>
-        body { font-family: "Microsoft JhengHei", sans-serif; margin: 0; padding: 15px; background: #e0e0e0; font-size: 14px; }
+        body { font-family: "Microsoft JhengHei", sans-serif; margin: 0; padding: 15px; background: #e0e0e0; }
+        .controls { background: white; padding: 20px; border-radius: 10px; box-shadow: 0 4px 10px rgba(0,0,0,0.2); max-width: 800px; margin: 0 auto 20px auto; }
+        .section { border-bottom: 1px dashed #ccc; padding: 10px 0; }
+        h4 { margin: 5px 0; color: #333; }
         
-        /* 控制面板 (列印時隱藏) */
-        .controls { background: white; padding: 20px; border-radius: 10px; box-shadow: 0 4px 10px rgba(0,0,0,0.2); max-width: 1000px; margin: 0 auto 20px auto; }
-        .section { border-bottom: 1px dashed #ccc; padding: 10px 0; margin-bottom: 10px; }
-        .section:last-child { border: none; }
-        h4 { margin: 0 0 10px 0; color: #333; }
-        
-        input[type="number"], input[type="text"] { width: 100px; padding: 5px; border: 1px solid #ccc; }
-        
-        /* 快捷圖示按鈕樣式 */
-        .preset-grid { display: flex; flex-wrap: wrap; gap: 10px; }
-        .preset-item { border: 2px solid #ccc; padding: 10px; cursor: pointer; border-radius: 8px; text-align: center; width: 120px; background: #f9f9f9; }
-        .preset-item:hover { border-color: #007bff; background: #e6f7ff; }
-        .preset-item.active { border-color: #007bff; background: #e6f7ff; box-shadow: 0 0 5px rgba(0,123,255,0.5); }
-        .preset-label { font-size: 12px; margin-top: 5px; display: block; color: #555; }
+        .preset-list { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 10px 0; }
+        .preset-item { border: 1px solid #ddd; padding: 10px; background: #f9f9f9; border-radius: 5px; cursor: pointer; }
+        .preset-item:hover { background: #eef; }
 
-        /* 列印頁面設定 */
-        .page { background: white; position: relative; margin: 20px auto; border: 1px solid #999; box-sizing: border-box; page-break-after: always; padding: 20mm; /* A4 預設邊距 */ }
+        /* 列印頁面 */
+        .page { background: white; position: relative; margin: 20px auto; border: 1px solid #999; box-sizing: border-box; page-break-after: always; overflow: hidden; }
         .A4 { width: 210mm; height: 297mm; }
         .A3 { width: 297mm; height: 420mm; }
 
-        /* 表格主體 (模擬圖一) */
-        .print-table { width: 100%; border-collapse: collapse; table-layout: fixed; }
-        .print-table th, .print-table td { border: 1px solid black; padding: 8px; text-align: center; word-wrap: break-word; }
-        .print-table th { background-color: #f2f2f2; font-weight: bold; }
+        /* 定位容器 */
+        .print-item { position: absolute; display: flex; align-items: center; white-space: nowrap; }
         
-        /* 表格欄位寬度設定 */
-        .col-index { width: 8%; }
-        .col-code { width: 35%; }
-        .col-spec { width: 22%; }
-        .col-corner { width: 15%; }
-        .col-memo { width: 20%; }
-
-        /* 改進版導角圖示 (純 CSS 實作裁切感) */
+        /* 導角圖示 */
         .icon-box { 
-            position: relative; 
-            border: 2px solid #000; 
-            background: #fff;
-            display: inline-flex; /* 在表格內置中 */
-            align-items: center;
-            justify-content: center;
-            font-weight: bold;
-            overflow: hidden; /* 核心：將超出框框的遮罩切掉 */
+            position: relative; border: 2px solid #000; background: #fff;
+            display: inline-flex; align-items: center; justify-content: center;
+            font-weight: bold; overflow: hidden; margin-right: 10px;
         }
-        
-        /* 導角遮罩：用白色方塊旋轉 45 度擋住角落 */
-        .mask { position: absolute; width: 70%; height: 70%; background: white; border: 2px solid #000; box-sizing: border-box; transform: rotate(45deg); }
-        
-        /* 各個角落的遮罩位置 */
-        .m-tl { top: -50%; left: -50%; } /* 左上 */
-        .m-tr { top: -50%; right: -50%; } /* 右上 */
-        .m-bl { bottom: -50%; left: -50%; } /* 左下 */
-        .m-br { bottom: -50%; right: -50%; } /* 右下 */
-
-        /* 快捷面板用的縮小版圖示 */
-        .preset-item .icon-box { width: 30px; height: 30px; font-size: 14px; }
+        .mask { position: absolute; width: 75%; height: 75%; background: white; border: 2px solid #000; box-sizing: border-box; transform: rotate(45deg); }
+        .m-tl { top: -52%; left: -52%; } .m-tr { top: -52%; right: -52%; }
+        .m-bl { bottom: -52%; left: -52%; } .m-br { bottom: -52%; right: -52%; }
 
         @media print {
             .controls { display: none; }
             body { background: white; padding: 0; }
-            .page { margin: 0; border: none; box-shadow: none; }
+            .page { margin: 0; border: none; }
         }
     </style>
 </head>
@@ -73,181 +42,97 @@
 
 <div class="controls">
     <div class="section">
-        <h4>1. 報表基本設定</h4>
-        紙張規格：<select id="paperSize" onchange="generate()"><option value="A4">A4</option><option value="A3">A3</option></select>
-        標題：<input type="text" id="tableTitle" value="二、物料匯整表" style="width: 300px;" oninput="generate()">
-        圖示大小：<input type="number" id="iconSize" value="40" oninput="generate()"> px
-        表格字體：<input type="number" id="fontSize" value="14" oninput="generate()"> px
+        <h4>1. 設定座標與紙張</h4>
+        規格：<select id="paperSize" onchange="generate()"><option value="A4">A4</option><option value="A3">A3</option></select>
+        座標 X (mm)：<input type="number" id="posX" value="50" oninput="generate()">
+        座標 Y (mm)：<input type="number" id="posY" value="50" oninput="generate()">
+        <br>
+        總張數：<input type="number" id="totalPage" value="5" oninput="generate()">
+        間隔張數：<input type="number" id="interval" value="1" oninput="generate()"> (1代表每張都印)
     </div>
 
     <div class="section">
-        <h4>2. 新增物料品項</h4>
-        物料代碼：<input type="text" id="inCode" placeholder="如：1-aSA4-E1H">
-        規格：<input type="text" id="inSpec" placeholder="如：A4mil-1/H">
-        圖內編號：<input type="text" id="inNum" placeholder="1 或 E" style="width: 60px;">
-        <br><br>
-        <strong>選擇導角標準 (下方圖示，點選即確認)：</strong>
-        <div class="preset-grid" id="presetGrid">
+        <h4>2. 點選常用欄位 (直接套用)</h4>
+        <div class="preset-list">
+            <div class="preset-item" onclick="apply('16mil 1/E', '1', [0,0,1,0])">
+                <b>16mil 1/E</b><br>導左下一角 / 內1
             </div>
-        <input type="hidden" id="inCorners" value="[0,0,1,1]"> </div>
+            <div class="preset-item" onclick="apply('4mil E/H', 'E', [0,0,1,0])">
+                <b>4mil E/H</b><br>導左下一角 / 內E
+            </div>
+            <div class="preset-item" onclick="apply('16mil 1/E', '1', [1,0,1,1])">
+                <b>16mil 1/E</b><br>右上不導其餘導 / 內1
+            </div>
+            <div class="preset-item" onclick="apply('4mil E/H', 'E', [1,0,1,1])">
+                <b>4mil E/H</b><br>右上不導其餘導 / 內E
+            </div>
+        </div>
+    </div>
 
-    <button onclick="addItem()" style="background: #28a745; color: white; padding: 10px 20px; border: none; cursor: pointer; font-size: 16px; border-radius: 5px;">＋ 新增至表格</button>
-    <button onclick="clearTable()" style="background: #dc3545; color: white; margin-left: 10px; border: none; padding: 5px 10px; cursor: pointer; border-radius: 5px;">清空表格</button>
-    <button onclick="window.print()" style="padding: 10px 20px; font-size: 16px; margin-left: 20px;">執行列印</button>
+    <div class="section">
+        <h4>3. 自訂內容</h4>
+        文字：<input type="text" id="txt" value="16mil 1/E" oninput="generate()">
+        內部：<input type="text" id="num" value="1" style="width:40px" oninput="generate()">
+        大小：<input type="number" id="size" value="40" style="width:50px" oninput="generate()"> px
+    </div>
+
+    <button onclick="window.print()" style="margin-top:10px; padding:10px 20px; background:#28a745; color:white; border:none; border-radius:5px; cursor:pointer;">執行列印</button>
 </div>
 
 <div id="printArea"></div>
 
 <script>
-    // 儲存所有品項的陣列
-    var materialList = [
-        // 預設範例資料 (模擬圖一)
-        { code: '1-aSA4-E1HO6', spec: 'A4mil-1/H', num: '1', corners: [0,0,1,1], memo: '' },
-        { code: '1-jn16-IEHF', spec: '16mil-E/H', num: 'E', corners: [0,1,1,1], memo: '' },
-        { code: '1-aSA5-E12O6', spec: 'A5mil-1/2', num: '2', corners: [0,0,0,1], memo: '斜線' } // 模擬斜線需求，稍後在 JS 處理
-    ];
+    var currentCorners = [0,0,1,0];
 
-    // 定義常用的導角樣式 (左上, 右上, 左下, 右下, 備註)
-    var presets = [
-        { c: [0,0,1,1], label: '導左下右下' },
-        { c: [0,0,1,0], label: '導左下' },
-        { c: [0,0,0,1], label: '導右下' },
-        { c: [1,0,1,1], label: '右上不導' },
-        { c: [0,1,1,1], label: '左上不導' },
-        { c: [1,1,1,1], label: '全導角' }
-    ];
-
-    // 初始化：生成快捷圖示面板
-    function initPresets() {
-        var grid = document.getElementById('presetGrid');
-        presets.forEach(function(p, index) {
-            var item = document.createElement('div');
-            item.className = 'preset-item' + (index === 0 ? ' active' : '');
-            item.onclick = function() { selectPreset(this, p.c); };
-            
-            // 生成一個縮小版的圖示
-            var iconHtml = createIconHtml(30, '？', p.c);
-            item.innerHTML = iconHtml + '<span class="preset-label">' + p.label + '</span>';
-            grid.appendChild(item);
-        });
-    }
-
-    function selectPreset(element, cornerArray) {
-        // 切換 active 樣式
-        var items = document.querySelectorAll('.preset-item');
-        items.forEach(function(i) { i.className = 'preset-item'; });
-        element.className = 'preset-item active';
-        
-        // 更新隱藏欄位的值
-        document.getElementById('inCorners').value = JSON.stringify(cornerArray);
-    }
-
-    // 將品項新增至陣列並重新渲染
-    function addItem() {
-        var code = document.getElementById('inCode').value;
-        var spec = document.getElementById('inSpec').value;
-        var num = document.getElementById('inNum').value;
-        var corners = JSON.parse(document.getElementById('inCorners').value);
-
-        if (!code || !num) { alert('請填寫物料代碼與圖內編號'); return; }
-
-        materialList.push({
-            code: code,
-            spec: spec,
-            num: num,
-            corners: corners,
-            memo: ''
-        });
-
-        // 清空輸入框
-        document.getElementById('inCode').value = '';
-        document.getElementById('inSpec').value = '';
-        document.getElementById('inNum').value = '';
-
+    function apply(t, n, c) {
+        document.getElementById('txt').value = t;
+        document.getElementById('num').value = n;
+        currentCorners = c;
         generate();
     }
 
-    function clearTable() {
-        if(confirm('確定要清空所有品項嗎？')) {
-            materialList = [];
-            generate();
-        }
-    }
-
-    // 核心繪圖函數：生成導角圖示的 HTML
-    function createIconHtml(size, num, corners) {
-        var html = '<div class="icon-box" style="width:' + size + 'px;height:' + size + 'px;font-size:' + (size*0.6) + 'px;">';
-        html += num; // 顯示編號 (1, E, H 等)
-        
-        // 根據陣列 [左上, 右上, 左下, 右下] 加入白色遮罩
-        if(corners[0]) html += '<div class="mask m-tl"></div>';
-        if(corners[1]) html += '<div class="mask m-tr"></div>';
-        if(corners[2]) html += '<div class="mask m-bl"></div>';
-        if(corners[3]) html += '<div class="mask m-br"></div>';
-        
-        html += '</div>';
-        return html;
-    }
-
-    // 生成最終列印頁面
     function generate() {
         var area = document.getElementById('printArea');
         area.innerHTML = '';
         
-        var pageSize = document.getElementById('paperSize').value;
-        var iconSize = document.getElementById('iconSize').value;
-        var fontSize = document.getElementById('fontSize').value;
-        
-        // 建立頁面容器
-        var page = document.createElement('div');
-        page.className = 'page ' + pageSize;
-        page.style.fontSize = fontSize + 'px';
+        var pSize = document.getElementById('paperSize').value;
+        var x = document.getElementById('posX').value;
+        var y = document.getElementById('posY').value;
+        var total = parseInt(document.getElementById('totalPage').value);
+        var interval = parseInt(document.getElementById('interval').value);
+        var iconSize = document.getElementById('size').value;
+        var textStr = document.getElementById('txt').value;
+        var numStr = document.getElementById('num').value;
 
-        // 加入標題
-        var title = document.createElement('h3');
-        title.style.marginTop = '0';
-        title.innerHTML = document.getElementById('tableTitle').value;
-        page.appendChild(title);
+        for (var i = 1; i <= total; i++) {
+            var page = document.createElement('div');
+            page.className = 'page ' + pSize;
 
-        // 建立表格
-        var table = document.createElement('table');
-        table.className = 'print-table';
-        
-        // 表頭
-        var thead = '<thead><tr>' +
-                    '<th class="col-index">序號</th>' +
-                    '<th class="col-code">物料代碼</th>' +
-                    '<th class="col-spec">規格</th>' +
-                    '<th class="col-corner">導角標準</th>' +
-                    '<th class="col-memo">彙整備註</th>' +
-                    '</tr></thead>';
-        table.innerHTML = thead;
+            if ((i - 1) % interval === 0) {
+                var item = document.createElement('div');
+                item.className = 'print-item';
+                item.style.left = x + 'mm';
+                item.style.top = y + 'mm';
 
-        // 表格內容
-        var tbody = document.createElement('tbody');
-        materialList.forEach(function(item, index) {
-            var row = document.createElement('tr');
-            
-            // 處理圖示 (如果備註寫斜線，則用原本的斜線樣式，否則用裁切樣式)
-            var iconCellHtml = createIconHtml(iconSize, item.num, item.corners);
-            
-            row.innerHTML = '<td>' + (index + 1) + '</td>' +
-                            '<td style="text-align:left;">' + item.code + '</td>' +
-                            '<td>' + item.spec + '</td>' +
-                            '<td>' + iconCellHtml + '</td>' +
-                            '<td>' + item.memo + '</td>';
-            tbody.appendChild(row);
-        });
-        
-        table.appendChild(tbody);
-        page.appendChild(table);
-        area.appendChild(page);
+                // 生成圖示
+                var icon = '<div class="icon-box" style="width:'+iconSize+'px;height:'+iconSize+'px;font-size:'+(iconSize*0.6)+'px;">' + numStr;
+                if(currentCorners[0]) icon += '<div class="mask m-tl"></div>';
+                if(currentCorners[1]) icon += '<div class="mask m-tr"></div>';
+                if(currentCorners[2]) icon += '<div class="mask m-bl"></div>';
+                if(currentCorners[3]) icon += '<div class="mask m-br"></div>';
+                icon += '</div>';
+
+                item.innerHTML = icon + '<span style="font-size:'+(iconSize*0.5)+'px; font-weight:bold;">' + textStr + '</span>';
+                page.appendChild(item);
+            }
+            area.appendChild(page);
+        }
     }
 
-    // 初始執行
-    initPresets();
+    // 初始預覽
     generate();
 </script>
 
 </body>
 </html>
+
