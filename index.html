@@ -1,293 +1,107 @@
 <!DOCTYPE html>
-<html lang="zh-TW">
+<html lang="zh-Hant">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>ELITE Sync Master v18.0</title>
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.5.1/dist/confetti.browser.min.js"></script>
+    <title>離線標記列印工具</title>
     <style>
-        :root { --bg: #0a0a0a; --card: #161616; --theme: #d4af37; --glow: rgba(212, 175, 55, 0.4); --red: #ff4d4d; }
-        body { font-family: -apple-system, sans-serif; background: var(--bg); color: #e0e0e0; margin: 0; padding: 15px; user-select: none; -webkit-tap-highlight-color: transparent; }
-        .card { background: var(--card); padding: 20px; border-radius: 16px; border: 1px solid #2a2a2a; margin-bottom: 15px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
-        h1 { color: var(--theme); font-size: 1.2rem; border-left: 3px solid var(--theme); padding-left: 10px; margin: 0 0 15px 0; }
-        button { width: 100%; padding: 14px; border-radius: 10px; border: none; background: var(--theme); color: #000; font-weight: 800; cursor: pointer; transition: 0.1s; margin-bottom: 5px; }
-        button:active { transform: scale(0.96); }
-        button:disabled { background: #333 !important; color: #666 !important; cursor: not-allowed; }
-        input, select { width: 100%; padding: 12px; border-radius: 8px; border: 1px solid #333; background: #000; color: #fff; margin-bottom: 10px; box-sizing: border-box; }
-        .member-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 15px; }
-        .member-item { background: #222; padding: 10px; border-radius: 8px; font-size: 13px; display: flex; align-items: center; border: 1px solid #333; }
-        .member-item input { width: auto; margin-right: 10px; margin-bottom: 0; }
-        .option-box { position: relative; background: #222; border-radius: 12px; padding: 20px; margin-bottom: 12px; overflow: hidden; border: 2px solid #333; cursor: pointer; transition: 0.2s; touch-action: manipulation; min-height: 60px; }
-        .option-box.voted { border-color: var(--theme); box-shadow: 0 0 15px var(--glow); background: #2a2a2a; }
-        .progress-fill { position: absolute; left: 0; top: 0; bottom: 0; background: var(--glow); width: 0%; transition: width 0.4s cubic-bezier(0.1, 0.7, 0.1, 1); z-index: 1; pointer-events: none; }
-        .content { position: relative; z-index: 2; display: flex; justify-content: space-between; align-items: center; font-weight: 900; pointer-events: none; width: 100%; }
-        .voted-mark { font-size: 11px; color: var(--theme); margin-top: 4px; display: none; }
-        .option-box.voted .voted-mark { display: block; }
-        .user-chip { display: inline-block; padding: 5px 12px; border-radius: 20px; background: #111; font-size: 11px; margin: 3px; border: 1px solid #333; color: #555; transition: 0.3s; }
-        .user-chip.ready { border-color: var(--theme); color: var(--theme); background: rgba(212,175,55,0.15); box-shadow: 0 0 8px var(--glow); }
-        #sync-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); z-index: 10000; display: none; flex-direction: column; justify-content: center; align-items: center; }
-        #countdown-num { font-size: 9rem; color: var(--theme); font-weight: 900; }
-        .timer-display { text-align: center; font-size: 2.5rem; color: var(--red); font-weight: 900; margin: 10px 0; font-family: monospace; }
-        .hidden { display: none !important; }
-        .secondary-btn { background: none; color: #777; font-size: 12px; text-decoration: underline; border: none; margin-top: 15px; cursor: pointer; }
+        /* 控制顯示與列印的基礎設定 */
+        body { font-family: "Microsoft JhengHei", Arial, sans-serif; margin: 0; padding: 20px; background: #f0f0f0; }
+        .controls { background: white; padding: 15px; border-radius: 8px; margin-bottom: 20px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        .controls input, .controls select { margin-right: 10px; margin-bottom: 10px; }
+
+        /* 列印頁面設定 */
+        .page {
+            background: white;
+            position: relative;
+            margin: 0 auto 20px auto;
+            border: 1px solid #ccc;
+            box-sizing: border-box;
+            overflow: hidden;
+            page-break-after: always;
+        }
+
+        /* A4 與 A3 尺寸定義 (96 DPI 換算) */
+        .A4 { width: 210mm; height: 297mm; }
+        .A3 { width: 297mm; height: 420mm; }
+
+        /* 導角圖示與文字容器 */
+        .content-item {
+            position: absolute;
+            display: flex;
+            align-items: center;
+        }
+        
+        /* 導角圖示樣式 */
+        .corner-icon {
+            width: 20px;
+            height: 20px;
+            border: 2px solid #000;
+            border-top-left-radius: 8px; /* 模擬導角 */
+            margin-right: 5px;
+        }
+
+        @media print {
+            .controls { display: none; } /* 列印時隱藏控制欄 */
+            body { background: white; padding: 0; }
+            .page { margin: 0; border: none; }
+        }
     </style>
 </head>
 <body>
 
-<div id="create-view" class="card hidden">
-    <h1>👑 房主設定賽事</h1>
-    <input type="text" id="new-title" placeholder="輸入競賽項目名稱">
-    <div id="member-checkboxes" class="member-grid"></div>
-    <div id="options-input">
-        <input type="text" class="opt-in" placeholder="選項 A">
-        <input type="text" class="opt-in" placeholder="選項 B">
-    </div>
-    <select id="mode-select" onchange="document.getElementById('duration-box').style.display = this.value=='1'?'block':'none'">
-        <option value="0">🗳️ 投票模式 (一人一票)</option>
-        <option value="1">🔥 競技模式 (瘋狂連點)</option>
+<div class="controls">
+    <h3>列印設定</h3>
+    紙張規格：
+    <select id="paperSize">
+        <option value="A4">A4 (210x297mm)</option>
+        <option value="A3">A3 (297x420mm)</option>
     </select>
-    <div id="duration-box" style="display:none"><select id="duration-select"><option value="15">15秒</option><option value="30" selected>30秒</option></select></div>
-    <button onclick="submitNewPoll()">開啟房間</button>
+    內容：<input type="text" id="inputText" placeholder="請輸入文字" value="測試文字">
+    <br>
+    座標 X (mm)：<input type="number" id="posX" value="50">
+    座標 Y (mm)：<input type="number" id="posY" value="50">
+    <br>
+    列印總張數：<input type="number" id="totalPage" value="5">
+    每隔幾張列印：<input type="number" id="interval" value="1" min="1"> (1 代表每張都印)
+    <br>
+    <button onclick="generatePages()">生成預覽</button>
+    <button onclick="window.print()">執行列印</button>
 </div>
 
-<div id="login-view" class="card hidden">
-    <h1>👤 選擇您的身份</h1>
-    <div id="user-select-list"></div>
-</div>
-
-<div id="poll-view" class="card hidden">
-    <div style="display:flex; justify-content:space-between; font-size:12px; color:#888; margin-bottom:10px;">
-        <span id="mode-label">---</span><span id="voter-stats">進度: 0/0</span>
-    </div>
-    <h1 id="poll-display-title">---</h1>
-    <div id="timer-box" class="timer-display">等待啟動</div>
-    <div id="poll-options"></div>
-    
-    <div id="ready-zone" style="text-align:center; margin-top:20px;">
-        <p id="id-name" style="color:var(--theme); font-size:13px; font-weight:bold;"></p>
-        <button id="ready-btn" onclick="toggleReady()">READY 點我準備</button>
-        <div id="ready-list" style="margin-top:15px;"></div>
-        <button class="secondary-btn" onclick="changeIdentity()">更換身份 / 點錯名字</button>
-    </div>
-
-    <div id="admin-controls" class="hidden" style="margin-top:25px; border-top:2px solid #222; padding-top:20px;">
-        <button id="start-btn" disabled onclick="broadcastStart()">啟動 (START)</button>
-        <button onclick="resetSystem()" style="background:#200; color:#f55; margin-top:10px;">重置房間</button>
-    </div>
-</div>
-
-<div id="sync-overlay"><div id="countdown-num">3</div></div>
+<div id="printArea"></div>
 
 <script>
-    const API_URL = 'https://nzuxyiefpenwuqudajdw.supabase.co';
-    const API_KEY = 'sb_publishable_7y2n8zIopxlKEhcsJ05D2A_U89IFgae';
-    const _supabase = supabase.createClient(API_URL, API_KEY);
-    const isAdmin = new URLSearchParams(window.location.search).get('admin') === 'true';
-    let currentPoll = null, myName = localStorage.getItem('elite_user'), syncChannel = null;
-    let isGameRunning = false, isFinished = false, localVotedId = null, allVotes = [];
-
-    async function init() {
-        const { data: poll } = await _supabase.from('polls').select('*').order('created_at', {ascending:false}).limit(1).maybeSingle();
-        if (isAdmin && !poll) return showCreate();
-        if (!poll) { document.body.innerHTML = "<div class='card'><h1>🏁 房間尚未開啟</h1></div>"; return; }
-        if (myName && !poll.target_names.includes(myName)) { localStorage.removeItem('elite_user'); myName = null; }
-        if (!myName) showLogin(poll); else loadPoll(poll);
-    }
-
-    async function showCreate() {
-        document.getElementById('create-view').classList.remove('hidden');
-        const { data: players } = await _supabase.from('players').select('name');
-        document.getElementById('member-checkboxes').innerHTML = (players || []).map(p => {
-            const cleanName = p.name.replace('OFF_', '');
-            return `<div class='member-item'><input type='checkbox' class='m-chk' value='${cleanName}' checked> ${cleanName}</div>`;
-        }).join('');
-    }
-
-    async function submitNewPoll() {
-        const names = Array.from(document.querySelectorAll('.m-chk:checked')).map(e => e.value);
-        const opts = {}; document.querySelectorAll('.opt-in').forEach((e, i) => { if(e.value) opts[i+1]=e.value; });
-        await _supabase.from('polls').insert([{ title: document.getElementById('new-title').value || "ELITE BATTLE", options: opts, poll_type: parseInt(document.getElementById('mode-select').value), duration_sec: parseInt(document.getElementById('duration-select').value), target_voters: names.length, target_names: names }]);
-        location.reload();
-    }
-
-    function showLogin(poll) {
-        document.getElementById('login-view').classList.remove('hidden');
-        document.getElementById('user-select-list').innerHTML = (poll.target_names || []).map(n => `<button onclick="setMe('${n}')" style="background:#222; margin-bottom:10px; border:1px solid #333;">${n}</button>`).join('');
-    }
-    function setMe(n) { localStorage.setItem('elite_user', n); location.reload(); }
-    function changeIdentity() { localStorage.removeItem('elite_user'); location.reload(); }
-
-    async function loadPoll(poll) {
-        currentPoll = poll;
-        document.getElementById('poll-view').classList.remove('hidden');
-        document.getElementById('poll-display-title').innerText = poll.title;
-        document.getElementById('id-name').innerText = `目前身份：${myName}`;
-        document.getElementById('mode-label').innerText = poll.poll_type == 1 ? "🔥 競技模式" : "🗳️ 投票模式";
-        if (isAdmin) document.getElementById('admin-controls').classList.remove('hidden');
-
-        // Realtime 監聽
-        _supabase.channel('db-changes').on('postgres_changes', { event: '*', schema: 'public', table: 'votes' }, () => syncVotes()).subscribe();
-        _supabase.channel('poll-changes').on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'polls' }, (p) => { 
-            if(p.new.start_at && !isGameRunning) startUIFlow(); 
-        }).subscribe();
-
-        syncChannel = _supabase.channel('room_' + poll.id, { config: { presence: { key: myName } } });
-        syncChannel.on('presence', { event: 'sync' }, () => {
-            const state = syncChannel.presenceState();
-            const readyNames = Object.keys(state).filter(k => state[k][0]?.ready);
-            document.getElementById('ready-list').innerHTML = poll.target_names.map(n => `<span class="user-chip ${readyNames.includes(n)?'ready':''}">${n}</span>`).join('');
-            if (isAdmin) document.getElementById('start-btn').disabled = (readyNames.length < poll.target_voters);
-        }).on('broadcast', { event: 'go' }, () => startUIFlow()).subscribe(async (s) => { if(s==='SUBSCRIBED') await syncChannel.track({ ready: false }); });
-
-        // 保底同步：每秒抓取一次，解決不跳動問題
-        setInterval(() => { if(isGameRunning && !isFinished) syncVotes(); }, 1500);
-
-        await syncVotes();
-        if (poll.start_at) startUIFlow(true);
-    }
-
-    async function syncVotes() {
-        const { data } = await _supabase.from('votes').select('option_id, voter_name').eq('poll_id', currentPoll.id);
-        if (data) {
-            allVotes = data;
-            const myVote = allVotes.find(x => x.voter_name === myName);
-            if (myVote) localVotedId = myVote.option_id;
-            updateUI();
-        }
-    }
-
-    async function toggleReady() {
-        const btn = document.getElementById('ready-btn');
-        btn.classList.toggle('active');
-        const isR = btn.classList.contains('active');
-        btn.innerText = isR ? "✓ 已就緒" : "READY 點我準備";
-        btn.style.background = isR ? "#1a4a1a" : "var(--theme)";
-        btn.style.color = isR ? "#fff" : "#000";
-        await syncChannel.track({ ready: isR });
-    }
-
-    async function broadcastStart() {
-        const end = new Date(Date.now() + (currentPoll.duration_sec + 4) * 1000).toISOString();
-        await _supabase.from('polls').update({ start_at: new Date().toISOString(), end_at: end }).eq('id', currentPoll.id);
-        syncChannel.send({ type: 'broadcast', event: 'go' });
-    }
-
-    function startUIFlow(isResume = false) {
-        isGameRunning = true; isFinished = false;
-        document.getElementById('ready-zone').classList.add('hidden');
-        if (isResume) runGameLogic();
-        else {
-            const overlay = document.getElementById('sync-overlay'), num = document.getElementById('countdown-num');
-            overlay.style.display = 'flex';
-            let c = 3;
-            const t = setInterval(() => {
-                num.innerText = c > 0 ? c : 'GO!';
-                if (c < 0) { clearInterval(t); overlay.style.display = 'none'; runGameLogic(); }
-                c--;
-            }, 1000);
-        }
-    }
-
-    function runGameLogic() {
-        if (currentPoll.poll_type == 0) {
-            document.getElementById('timer-box').innerText = "請投票";
-        } else {
-            const iv = setInterval(() => {
-                const d = (new Date(currentPoll.end_at) - Date.now()) / 1000;
-                if (d <= 0) { clearInterval(iv); finishGame(); }
-                else document.getElementById('timer-box').innerText = d.toFixed(1) + "s";
-            }, 100);
-        }
-        updateUI();
-    }
-
-    async function castVote(id) {
-        if (!isGameRunning || isFinished) return;
-        if (currentPoll.poll_type == 0 && localVotedId) return;
-
-        // 本地立即反饋
-        if (currentPoll.poll_type === 1) {
-            allVotes.push({ option_id: id, voter_name: myName });
-        } else {
-            localVotedId = id;
-        }
-        updateUI();
-
-        // 送出到資料庫
-        const { error } = await _supabase.from('votes').insert([{ poll_id: currentPoll.id, option_id: id, voter_name: myName }]);
-        if (!error) syncVotes();
-    }
-
-    function updateUI() {
-        const stats = {}; allVotes.forEach(x => stats[x.option_id] = (stats[x.option_id] || 0) + 1);
-        const total = allVotes.length;
-        document.getElementById('voter-stats').innerText = `進度: ${total}/${currentPoll.target_voters}`;
+    function generatePages() {
+        const paperSize = document.getElementById('paperSize').value;
+        const text = document.getElementById('inputText').value;
+        const x = document.getElementById('posX').value;
+        const y = document.getElementById('posY').value;
+        const total = parseInt(document.getElementById('totalPage').value);
+        const interval = parseInt(document.getElementById('interval').value);
         
-        // 關鍵：只有在「投票中」且是「投票模式」才隱藏數字
-        const shouldHide = (currentPoll.poll_type == 0 && isGameRunning && !isFinished);
-        const cont = document.getElementById('poll-options');
-        cont.innerHTML = '';
-        
-        Object.entries(currentPoll.options).forEach(([id, text]) => {
-            const count = stats[id] || 0;
-            const max = Math.max(...Object.values(stats), 1);
-            
-            // 計算顯示數值
-            let per = 0;
-            let displayCount = count;
+        const area = document.getElementById('printArea');
+        area.innerHTML = ''; // 清除舊內容
 
-            if (shouldHide) {
-                per = 0;
-                displayCount = "?";
-            } else {
-                per = (currentPoll.poll_type == 1) ? (count / max) * 100 : (count / currentPoll.target_voters) * 100;
-                displayCount = count;
+        for (let i = 1; i <= total; i++) {
+            const page = document.createElement('div');
+            page.className = 'page ' + paperSize;
+
+            // 判斷是否為間隔張數需要寫入內容
+            if ((i - 1) % interval === 0) {
+                const item = document.createElement('div');
+                item.className = 'content-item';
+                item.style.left = x + 'mm';
+                item.style.top = y + 'mm';
+                
+                // 插入導角圖示與文字
+                item.innerHTML = '<div class="corner-icon"></div><span>' + text + ' (第' + i + '張)</span>';
+                page.appendChild(item);
             }
 
-            const div = document.createElement('div');
-            div.className = `option-box ${localVotedId == id ? 'voted' : ''}`;
-            div.onclick = () => castVote(id);
-            div.innerHTML = `
-                <div class="progress-fill" style="width:${per}%"></div>
-                <div class="content">
-                    <div style="text-align:left">
-                        <div style="font-size:1.1rem">${text}</div>
-                        <div class="voted-mark">✓ 已選擇</div>
-                    </div>
-                    <div style="font-size:1.8rem; color:var(--theme)">${displayCount}</div>
-                </div>`;
-            cont.appendChild(div);
-        });
-
-        // 投票模式自動結算
-        if (currentPoll.poll_type == 0 && total >= currentPoll.target_voters && isGameRunning) {
-            finishGame();
+            area.appendChild(page);
         }
     }
-
-    async function finishGame() {
-        if (isFinished) return;
-        isGameRunning = false;
-        isFinished = true;
-        document.getElementById('timer-box').innerText = "結 算 中";
-        
-        // 結算強制抓取數據
-        const { data } = await _supabase.from('votes').select('option_id').eq('poll_id', currentPoll.id);
-        if (data) allVotes = data;
-        
-        setTimeout(() => {
-            document.getElementById('timer-box').innerText = "完 成";
-            updateUI();
-            confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 } });
-        }, 800);
-    }
-
-    async function resetSystem() { 
-        if(confirm("確定重置嗎？")) { await _supabase.from('polls').delete().eq('id', currentPoll.id); location.reload(); }
-    }
-    init();
 </script>
+
 </body>
 </html>
-
