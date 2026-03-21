@@ -2,21 +2,17 @@
 <html lang="zh-Hant">
 <head>
     <meta charset="UTF-8">
-    <title>工業標記定位工具 v8.0 (XP定位版)</title>
+    <title>工業標記定位工具 v9.0 (XP定位加強版)</title>
     <style>
         body { font-family: "Microsoft JhengHei", Arial, sans-serif; margin: 0; padding: 15px; background: #e0e0e0; font-size: 14px; }
-        .controls { background: white; padding: 20px; border-radius: 10px; box-shadow: 0 4px 10px rgba(0,0,0,0.2); max-width: 950px; margin: 0 auto 20px auto; }
+        .controls { background: white; padding: 20px; border-radius: 10px; box-shadow: 0 4px 10px rgba(0,0,0,0.2); max-width: 1000px; margin: 0 auto 20px auto; }
         .section { border-bottom: 1px dashed #ccc; padding: 10px 0; clear: both; }
-        
-        .left-col { float: left; width: 48%; }
-        .right-col { float: right; width: 48%; }
+        .col-3 { float: left; width: 32%; margin-right: 1%; }
         .clearfix { clear: both; }
         
-        .picker-btn { border: 2px solid #ddd; padding: 5px; cursor: pointer; background: #fff; float: left; margin-right: 5px; width: 55px; text-align: center; }
+        .picker-btn { border: 2px solid #ddd; padding: 5px; cursor: pointer; background: #fff; float: left; margin-right: 5px; width: 50px; text-align: center; }
         .picker-btn.active { border-color: #007bff; background: #eef; }
-        .preset-area { background: #f8f9fa; padding: 10px; border: 1px solid #ddd; }
-        .preset-chip { cursor: pointer; display: inline-block; padding: 5px 12px; background: #007bff; color: white; border-radius: 15px; font-size: 12px; margin: 3px; }
-
+        
         .queue-table { width: 100%; border-collapse: collapse; margin-top: 10px; background: #fff; }
         .queue-table th, .queue-table td { border: 1px solid #ddd; padding: 5px; text-align: center; }
         .queue-table input { width: 85%; padding: 3px; border: 1px solid #eee; text-align: center; }
@@ -28,16 +24,20 @@
         .print-item { position: absolute; display: block; white-space: nowrap; line-height: 1; }
         .label-text { display: inline-block; vertical-align: middle; font-weight: bold; margin-right: 5px; }
         
+        /* 導角圖示樣式 */
         .icon-box { 
             position: relative; border: 2px solid #000; background: #fff;
             display: inline-block; vertical-align: middle;
-            font-weight: bold; overflow: hidden;
-            text-align: center;
+            font-weight: bold; overflow: hidden; text-align: center;
         }
+        /* 印章純文字樣式 (無邊框) */
+        .stamp-box { display: inline-block; vertical-align: middle; font-weight: bold; }
         
         .mask { position: absolute; width: 85%; height: 85%; background: white; border: 3px solid #000; box-sizing: border-box; transform: rotate(45deg); -ms-transform: rotate(45deg); -webkit-transform: rotate(45deg); }
         .m-tl { top: -60%; left: -60%; } .m-tr { top: -60%; right: -60%; }
         .m-bl { bottom: -60%; left: -60%; } .m-br { bottom: -60%; right: -60%; }
+
+        .btn-move { padding: 2px 8px; cursor: pointer; background: #eee; border: 1px solid #999; }
 
         @media print {
             .controls { display: none; }
@@ -50,50 +50,49 @@
 
 <div class="controls">
     <div class="section">
-        <div class="left-col">
-            <h4>1. 紙張設定</h4>
-            規格：<select id="paperSize" onchange="generate()"><option value="A4">A4 (直)</option><option value="A3">A3 (橫)</option></select>
-            總張數：<input type="number" id="totalPage" value="1" style="width:50px" oninput="generate()">
+        <div class="col-3">
+            <h4>1. 紙張與基礎新增</h4>
+            規格：<select id="paperSize" onchange="generate()"><option value="A4">A4 (直)</option><option value="A3">A3 (橫)</option></select><br>
+            人員/文字：<input type="text" id="inTxt" value="城乙資訊" style="width:80px"><br>
+            數量/內部：<input type="text" id="inNum" value="1" style="width:30px"><br>
+            <button onclick="addItemLogic()" style="background:#007bff; color:white; border:none; padding:5px 10px; cursor:pointer; margin-top:5px;">＋ 加入導角標記</button>
+            <button onclick="addStamp()" style="background:#e74c3c; color:white; border:none; padding:5px 10px; cursor:pointer; margin-top:5px;">＋ 加入純文字印章</button>
         </div>
-        <div class="right-col" style="background: #fff3cd; padding: 10px; border-radius: 5px;">
-            <h4>★ 常用座標範圍模式 (一鍵排版)</h4>
-            <button onclick="applyRangeMode(1)" style="padding: 5px 10px; cursor: pointer;">模式 1 (直長型)</button>
-            <button onclick="applyRangeMode(2)" style="padding: 5px 10px; cursor: pointer;">模式 2 (方塊型)</button>
-            <p style="font-size: 11px; color: #856404; margin-top: 5px;">※ 自動將清單內容放入指定區域且不重疊。</p>
+        <div class="col-3" style="background: #f0f8ff; padding: 5px; border-radius: 5px;">
+            <h4>2. 座標範圍模式 (自動排版)</h4>
+            <button onclick="applyRangeMode(1)">模式 1 (橫長型)</button>
+            <button onclick="applyRangeMode(2)">模式 2 (方塊型)</button><br>
+            <hr>
+            自定義範圍：<br>
+            左上 X:<input type="number" id="custX1" value="0" style="width:35px"> Y:<input type="number" id="custY1" value="0" style="width:35px"><br>
+            右下 X:<input type="number" id="custX2" value="100" style="width:35px"> Y:<input type="number" id="custY2" value="100" style="width:35px"><br>
+            <button onclick="applyRangeMode('custom')" style="width:100%; margin-top:3px;">套用自定義範圍</button>
         </div>
-        <div class="clearfix"></div>
-    </div>
-
-    <div class="section">
-        <div class="left-col">
-            <h4>3. 自訂新增 (導角/印章)</h4>
-            人員/內容：<input type="text" id="inTxt" value="城乙資訊" style="width:100px">
-            數量/內部：<input type="text" id="inNum" value="1" style="width:30px">
-            X：<input type="number" id="inX" value="20" style="width:40px">
-            Y：<input type="number" id="inY" value="20" style="width:40px">
-            <div class="corner-picker" id="cornerPicker"></div>
-            <div class="clearfix"></div>
-            <button onclick="addItemLogic()" style="background:#007bff; color:white; border:none; padding:8px 15px; cursor:pointer; margin-top:10px;">＋ 加入清單</button>
-            <button onclick="addStamp()" style="background:#e74c3c; color:white; border:none; padding:8px 15px; cursor:pointer;">＋ 快速印章</button>
-        </div>
-        <div class="right-col">
-            <h4>2. 常用導角 (防覆蓋 25mm)</h4>
-            <div class="preset-area">
-                <span class="preset-chip" onclick="quickAdd('16mil 1/E', '1', 3)">16mil 1/E</span>
-                <span class="preset-chip" onclick="quickAdd('4mil E/H', 'E', 3)">4mil E/H</span>
+        <div class="col-3">
+            <h4>3. 全體座標微調 (mm)</h4>
+            <div style="text-align:center">
+                <button class="btn-move" onclick="shiftAll(0, -1)">↑ 上</button><br>
+                <button class="btn-move" onclick="shiftAll(-1, 0)">← 左</button>
+                <button class="btn-move" onclick="shiftAll(1, 0)">右 →</button><br>
+                <button class="btn-move" onclick="shiftAll(0, 1)">↓ 下</button>
             </div>
+            <p style="font-size:11px; color:#666;">※ 用於對齊印刷偏差，每次移動 1mm。</p>
         </div>
         <div class="clearfix"></div>
     </div>
 
     <div class="section">
-        <div style="float:left"><h4>待列印清單</h4></div>
-        <div style="float:right">
+        <div class="left-col">
+            <div id="cornerPicker"></div>
+        </div>
+        <div class="right-col" style="text-align:right">
             一鍵更改大小：<input type="number" id="batchSize" value="25" style="width:40px"> px 
             <button onclick="setAllSize()" style="background:#f39c12; color:white; border:none; padding:5px 10px; cursor:pointer;">執行</button>
         </div>
         <div class="clearfix"></div>
-        
+    </div>
+
+    <div class="section">
         <table class="queue-table">
             <thead>
                 <tr style="background:#eee">
@@ -102,9 +101,9 @@
             </thead>
             <tbody id="queueBody"></tbody>
         </table>
-        <div style="margin-top:15px; text-align:right;">
-            <button onclick="clearQueue()" style="background:#666; color:#fff; border:none; padding:10px 15px; cursor:pointer;">清空清單</button>
-            <button onclick="window.print()" style="padding:10px 30px; background:#28a745; color:white; border:none; cursor:pointer; font-weight:bold; font-size:16px;">執行列印</button>
+        <div style="margin-top:10px; text-align:right;">
+            <button onclick="clearQueue()" style="background:#666; color:#fff; border:none; padding:10px 15px; cursor:pointer;">清空</button>
+            <button onclick="window.print()" style="padding:10px 30px; background:#28a745; color:white; border:none; cursor:pointer; font-weight:bold;">執行列印</button>
         </div>
     </div>
 </div>
@@ -123,8 +122,8 @@
             var btn = document.createElement('div');
             btn.className = 'picker-btn' + (i === selectedCornerType ? ' active' : '');
             btn.id = 'p-' + i;
-            btn.onclick = (function(idx){ return function(){ selectedCorner(idx); }; })(i);
-            btn.innerHTML = createIconHtml(18, '?', cornerDefs[i]) + '<div style="font-size:10px">' + i + '</div>';
+            btn.onclick = (function(idx){ return function(){ selectCorner(idx); }; })(i);
+            btn.innerHTML = createIconHtml(16, '?', cornerDefs[i]) + '<div style="font-size:10px">' + i + '</div>';
             picker.appendChild(btn);
         }
     }
@@ -135,7 +134,12 @@
         document.getElementById('p-'+idx).className = 'picker-btn active';
     }
 
-    function createIconHtml(size, num, corners) {
+    function createIconHtml(size, num, corners, isStamp) {
+        if (isStamp) {
+            // 印章模式：純文字數量，不畫框
+            return '<div class="stamp-box" style="font-size:'+(size*0.7)+'px; margin-left:5px;">' + num + '</div>';
+        }
+        // 導角模式：有方框
         var html = '<div class="icon-box" style="width:'+size+'px;height:'+size+'px;line-height:'+(size-2)+'px;font-size:'+(size*0.6)+'px;">' + num;
         if(corners[0]) html += '<div class="mask m-tl"></div>';
         if(corners[1]) html += '<div class="mask m-tr"></div>';
@@ -149,10 +153,9 @@
         var txt = customData ? customData.txt : document.getElementById('inTxt').value;
         var num = customData ? customData.num : document.getElementById('inNum').value;
         var corn = customData ? customData.corner : selectedCornerType;
-        var x = customData ? customData.x : parseFloat(document.getElementById('inX').value);
-        var y = customData ? customData.y : parseFloat(document.getElementById('inY').value);
         var size = 25;
-
+        // 初始位置 20,20，若重疊自動平移 25mm
+        var x = 20; var y = 20;
         if (queue.length > 0) {
             var last = queue[queue.length - 1];
             if (last.x === x && last.y === y) { x = last.x + 25; }
@@ -161,55 +164,44 @@
         updateQueueUI();
     }
 
-    function quickAdd(txt, num, cornerIdx) { addItemLogic({ txt: txt, num: num, corner: cornerIdx, x: 20, y: 20 }); }
-    function addStamp() { addItemLogic({ txt: document.getElementById('inTxt').value, num: document.getElementById('inNum').value, corner: 0, x: 20, y: 20 }); }
+    function addStamp() { addItemLogic({ txt: document.getElementById('inTxt').value, num: document.getElementById('inNum').value, corner: 0 }); }
 
-    // 智慧座標範圍模式
     function applyRangeMode(mode) {
-        if (queue.length === 0) { alert("清單是空的，請先新增項目！"); return; }
-        
-        var startX, startY, limitX, limitY;
+        if (queue.length === 0) return;
+        var x1, y1, x2, y2;
         if (mode === 1) {
-            startX = 66; startY = 90; limitX = 66 + 10; limitY = 90 + 90;
-        } else {
-            startX = 10; startY = 90; limitX = 10 + 50; limitY = 90 + 50;
+            x1 = 66; y1 = 90; x2 = 66 + 90; y2 = 90 + 10;
+        } else if (mode === 2) {
+            x1 = 10; y1 = 90; x2 = 10 + 50; y2 = 90 + 50;
+        } else if (mode === 'custom') {
+            x1 = parseFloat(document.getElementById('custX1').value);
+            y1 = parseFloat(document.getElementById('custY1').value);
+            x2 = parseFloat(document.getElementById('custX2').value);
+            y2 = parseFloat(document.getElementById('custY2').value);
         }
 
-        var curX = startX;
-        var curY = startY;
-        var rowHeight = 12; // 估算每一列高度(mm)
-        var itemWidth = 35; // 估算每一項寬度(mm)，包含文字與圖示
-
+        var curX = x1; var curY = y1;
+        var rowH = 12; var itemW = 38;
         for (var i = 0; i < queue.length; i++) {
-            // 檢查是否需要換行
-            if (curX + itemWidth > limitX + 5) { // 容許一點誤差
-                curX = startX;
-                curY += rowHeight;
-            }
-
-            // 檢查是否超出 Y 軸範圍
-            if (curY + rowHeight > limitY + 5) {
-                alert("警告：項目過多，已超出座標範圍！");
-                break;
-            }
-
-            queue[i].x = curX;
-            queue[i].y = curY;
-            
-            // 模式 1 寬度窄，強制換行；模式 2 較寬可並排
-            if (mode === 1) {
-                curY += rowHeight; // 直向排列
-            } else {
-                curX += itemWidth; // 橫向排列
-            }
+            if (curX + itemW > x2 + 5) { curX = x1; curY += rowH; }
+            if (curY + rowH > y2 + 10) { alert("警告：範圍不足以容納所有項目！"); break; }
+            queue[i].x = curX; queue[i].y = curY;
+            curX += itemW;
         }
         updateQueueUI();
-        alert("模式 " + mode + " 套用完成！");
+    }
+
+    function shiftAll(dx, dy) {
+        for(var i=0; i<queue.length; i++) {
+            queue[i].x += dx;
+            queue[i].y += dy;
+        }
+        updateQueueUI();
     }
 
     function setAllSize() {
-        var newSize = parseInt(document.getElementById('batchSize').value);
-        for(var i=0; i<queue.length; i++) { queue[i].size = newSize; }
+        var s = parseInt(document.getElementById('batchSize').value);
+        for(var i=0; i<queue.length; i++) queue[i].size = s;
         updateQueueUI();
     }
 
@@ -219,18 +211,14 @@
         for(var i=0; i<queue.length; i++) {
             var item = queue[i];
             var tr = document.createElement('tr');
-            var optHtml = '';
-            for(var k in cornerDefs) {
-                var sel = (item.corner == k) ? 'selected' : '';
-                var label = (k == 0) ? '印章' : k + '號導角';
-                optHtml += '<option value="'+k+'" '+sel+'>'+label+'</option>';
-            }
+            var optHtml = '<option value="0" '+(item.corner==0?'selected':'')+'>純文字印章</option>';
+            for(var k=1; k<=7; k++) optHtml += '<option value="'+k+'" '+(item.corner==k?'selected':'')+'>'+k+'號導角</option>';
             tr.innerHTML = 
                 '<td><input type="text" value="'+item.txt+'" onchange="editItem('+i+',\'txt\',this.value)"></td>' +
                 '<td><input type="text" value="'+item.num+'" onchange="editItem('+i+',\'num\',this.value)" style="width:40px"></td>' +
-                '<td><input type="number" value="'+item.x+'" onchange="editItem('+i+',\'x\',this.value)" style="width:50px"></td>' +
-                '<td><input type="number" value="'+item.y+'" onchange="editItem('+i+',\'y\',this.value)" style="width:50px"></td>' +
-                '<td><input type="number" value="'+item.size+'" onchange="editItem('+i+',\'size\',this.value)" style="width:50px"></td>' +
+                '<td><input type="number" value="'+item.x+'" onchange="editItem('+i+',\'x\',this.value)" style="width:45px"></td>' +
+                '<td><input type="number" value="'+item.y+'" onchange="editItem('+i+',\'y\',this.value)" style="width:45px"></td>' +
+                '<td><input type="number" value="'+item.size+'" onchange="editItem('+i+',\'size\',this.value)" style="width:40px"></td>' +
                 '<td><select onchange="editItem('+i+',\'corner\',this.value)">'+optHtml+'</select></td>' +
                 '<td><button onclick="removeItem('+i+')">刪除</button></td>';
             body.appendChild(tr);
@@ -238,10 +226,7 @@
         generate();
     }
 
-    function editItem(index, key, value) {
-        queue[index][key] = (key === 'txt' || key === 'num') ? value : parseFloat(value);
-        generate();
-    }
+    function editItem(i, k, v) { queue[i][k] = (k === 'txt' || k === 'num') ? v : parseFloat(v); generate(); }
     function removeItem(idx) { queue.splice(idx, 1); updateQueueUI(); }
     function clearQueue() { queue = []; updateQueueUI(); }
 
@@ -250,7 +235,6 @@
         area.innerHTML = '';
         var pSize = document.getElementById('paperSize').value;
         var total = parseInt(document.getElementById('totalPage').value);
-
         for (var i = 1; i <= total; i++) {
             var page = document.createElement('div');
             page.className = 'page ' + pSize;
@@ -260,16 +244,14 @@
                 el.className = 'print-item';
                 el.style.left = item.x + 'mm';
                 el.style.top = item.y + 'mm';
-                var icon = createIconHtml(item.size, item.num, cornerDefs[item.corner]);
+                var icon = createIconHtml(item.size, item.num, cornerDefs[item.corner], (item.corner==0));
                 el.innerHTML = '<span class="label-text" style="font-size:'+(item.size*0.5)+'px;">'+item.txt+'</span>' + icon;
                 page.appendChild(el);
             }
             area.appendChild(page);
         }
     }
-
     initPicker();
-    generate();
 </script>
 </body>
 </html>
