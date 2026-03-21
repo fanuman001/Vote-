@@ -2,48 +2,51 @@
 <html lang="zh-Hant">
 <head>
     <meta charset="UTF-8">
-    <title>工業標記定位工具 v11.0 (XP旗艦版)</title>
+    <title>工業標記定位工具 v12.0 (XP旗艦版)</title>
     <style>
-        body { font-family: "Microsoft JhengHei", Arial, sans-serif; margin: 0; padding: 15px; background: #e0e0e0; font-size: 14px; }
-        .controls { background: white; padding: 20px; border-radius: 10px; box-shadow: 0 4px 10px rgba(0,0,0,0.2); max-width: 1100px; margin: 0 auto 20px auto; }
-        .section { border-bottom: 1px dashed #ccc; padding: 12px 0; clear: both; }
+        body { font-family: "Microsoft JhengHei", Arial, sans-serif; margin: 0; padding: 15px; background: #d0d0d0; font-size: 14px; }
+        .controls { background: white; padding: 15px; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.3); max-width: 1150px; margin: 0 auto 20px auto; border: 1px solid #999; }
+        .section { border-bottom: 1px solid #eee; padding: 10px 0; clear: both; }
+        .section:last-child { border-bottom: none; }
         
-        .col { float: left; box-sizing: border-box; padding: 0 10px; }
-        .col-1 { width: 30%; border-right: 1px solid #eee; }
-        .col-2 { width: 40%; border-right: 1px solid #eee; }
-        .col-3 { width: 30%; }
+        .col { float: left; box-sizing: border-box; padding: 0 8px; }
+        .col-1 { width: 28%; border-right: 1px solid #ddd; }
+        .col-2 { width: 44%; border-right: 1px solid #ddd; }
+        .col-3 { width: 28%; }
         .clearfix { clear: both; }
         
-        .picker-btn { border: 2px solid #ddd; padding: 5px; cursor: pointer; background: #fff; float: left; margin-right: 5px; width: 48px; text-align: center; margin-bottom: 5px; }
-        .picker-btn.active { border-color: #007bff; background: #eef; }
-        .preset-area { background: #f8f9fa; padding: 8px; border: 1px solid #ddd; border-radius: 5px; }
-        .preset-chip { cursor: pointer; display: inline-block; padding: 4px 10px; background: #007bff; color: white; border-radius: 12px; font-size: 12px; margin: 3px; }
+        h4 { margin: 0 0 8px 0; color: #333; border-left: 4px solid #007bff; padding-left: 8px; }
 
-        .queue-table { width: 100%; border-collapse: collapse; margin-top: 10px; background: #fff; font-size: 12px; }
-        .queue-table th, .queue-table td { border: 1px solid #ddd; padding: 4px; text-align: center; }
-        .queue-table input { width: 90%; padding: 2px; border: 1px solid #eee; text-align: center; }
+        .picker-btn { border: 2px solid #ccc; padding: 3px; cursor: pointer; background: #fff; float: left; margin: 0 4px 4px 0; width: 45px; text-align: center; }
+        .picker-btn.active { border-color: #ff4500; background: #fff5ee; box-shadow: inset 0 0 5px rgba(0,0,0,0.1); }
+        .preset-chip { cursor: pointer; display: inline-block; padding: 4px 10px; background: #444; color: white; border-radius: 4px; font-size: 12px; margin: 2px; }
+        .preset-chip:hover { background: #000; }
 
-        /* 紙張間隔樣式 */
-        .page { background: white; position: relative; margin: 40px auto; border: 1px solid #999; box-shadow: 5px 5px 15px rgba(0,0,0,0.1); box-sizing: border-box; page-break-after: always; overflow: hidden; }
+        .queue-table { width: 100%; border-collapse: collapse; margin-top: 10px; background: #fff; font-size: 12px; border: 1px solid #ccc; }
+        .queue-table th { background: #f2f2f2; border: 1px solid #ccc; padding: 5px; }
+        .queue-table td { border: 1px solid #ccc; padding: 3px; text-align: center; }
+        .queue-table input { width: 85%; padding: 2px; border: 1px solid #ddd; text-align: center; }
+
+        /* 紙張預覽樣式 */
+        .page { background: white; position: relative; margin: 30px auto; border: 1px solid #666; box-shadow: 8px 8px 0px rgba(0,0,0,0.1); box-sizing: border-box; page-break-after: always; overflow: hidden; }
         .A4 { width: 210mm; height: 297mm; }
         .A3 { width: 420mm; height: 297mm; }
 
         .print-item { position: absolute; display: block; white-space: nowrap; line-height: 1; }
         .label-text { display: inline-block; vertical-align: middle; font-weight: bold; margin-right: 5px; }
         
-        .icon-box { 
-            position: relative; border: 2px solid #000; background: #fff;
-            display: inline-block; vertical-align: middle;
-            font-weight: bold; overflow: hidden; text-align: center;
-        }
+        .icon-box { position: relative; border: 2px solid #000; background: #fff; display: inline-block; vertical-align: middle; font-weight: bold; overflow: hidden; text-align: center; }
         .stamp-box { display: inline-block; vertical-align: middle; font-weight: bold; }
         
         .mask { position: absolute; width: 85%; height: 85%; background: white; border: 3px solid #000; box-sizing: border-box; transform: rotate(45deg); -ms-transform: rotate(45deg); -webkit-transform: rotate(45deg); }
         .m-tl { top: -60%; left: -60%; } .m-tr { top: -60%; right: -60%; }
         .m-bl { bottom: -60%; left: -60%; } .m-br { bottom: -60%; right: -60%; }
 
-        .move-ctrl { display: inline-block; width: 30px; height: 30px; line-height: 30px; text-align: center; background: #f0f0f0; border: 1px solid #ccc; cursor: pointer; font-weight: bold; margin: 2px; border-radius: 3px; }
-        .move-ctrl:hover { background: #ddd; }
+        .move-ctrl { display: inline-block; width: 32px; height: 32px; line-height: 32px; text-align: center; background: #eee; border: 1px solid #999; cursor: pointer; font-weight: bold; margin: 1px; border-radius: 2px; }
+        .move-ctrl:active { background: #ccc; }
+
+        .btn-main { background: #007bff; color: white; border: 1px solid #0056b3; padding: 6px 12px; cursor: pointer; font-weight: bold; }
+        .btn-stamp { background: #d9534f; color: white; border: 1px solid #ac2925; padding: 6px 12px; cursor: pointer; font-weight: bold; }
 
         @media print {
             .controls { display: none; }
@@ -57,43 +60,48 @@
 <div class="controls">
     <div class="section">
         <div class="col col-1">
-            <h4>1. 基本新增</h4>
+            <h4>1. 新增項目</h4>
             規格：<select id="paperSize" onchange="generate()"><option value="A4">A4 (直)</option><option value="A3">A3 (橫)</option></select>
-            張數：<input type="number" id="totalPage" value="1" style="width:35px" oninput="generate()"><br>
-            文字：<input type="text" id="inTxt" value="城乙資訊" style="width:80px">
-            數量：<input type="text" id="inNum" value="1" style="width:30px"><br>
-            <button onclick="addItemLogic()" style="background:#007bff; color:white; border:none; padding:6px 12px; cursor:pointer; margin-top:5px; border-radius:3px;">＋ 導角標記</button>
-            <button onclick="addStamp()" style="background:#e74c3c; color:white; border:none; padding:6px 12px; cursor:pointer; margin-top:5px; border-radius:3px;">＋ 純文字印章</button>
+            總張數：<input type="number" id="totalPage" value="1" style="width:40px" oninput="generate()"><br>
+            <div style="margin-top:5px;">
+                文字：<input type="text" id="inTxt" value="城乙資訊" style="width:85px">
+                內容：<input type="text" id="inNum" value="1" style="width:30px">
+            </div>
+            <div style="margin-top:8px;">
+                <button class="btn-main" onclick="addItemLogic()">＋ 導角標記</button>
+                <button class="btn-stamp" onclick="addStamp()">＋ 純文字</button>
+            </div>
         </div>
         
         <div class="col col-2">
-            <h4>2. 導角類型與快捷鍵</h4>
+            <h4>2. 導角與列印設定</h4>
             <div class="preset-area">
                 <span class="preset-chip" onclick="quickAdd('16mil 1/E', '1', 3)">16mil (3號)</span>
                 <span class="preset-chip" onclick="quickAdd('4mil E/H', 'E', 3)">4mil (3號)</span>
+                <span style="font-size:12px; margin-left:10px;">列印頻率：每 <input type="number" id="printFreq" value="1" style="width:35px" oninput="generate()"> 張印一次文字</span>
                 <div class="clearfix" style="margin-top:5px;"></div>
                 <div id="cornerPicker"></div>
             </div>
         </div>
 
         <div class="col col-3">
-            <h4>3. 全體座標微調 (mm)</h4>
+            <h4>3. 全體座標微調</h4>
             <div style="text-align:center;">
                 <div class="move-ctrl" onclick="shiftAll(0, -1)">↑</div><br>
                 <div class="move-ctrl" onclick="shiftAll(-1, 0)">←</div>
                 <div class="move-ctrl" onclick="shiftAll(1, 0)">→</div><br>
                 <div class="move-ctrl" onclick="shiftAll(0, 1)">↓</div>
             </div>
-            <p style="font-size:11px; color:#666; text-align:center;">每次移動 1mm 修正整體位置</p>
         </div>
         <div class="clearfix"></div>
     </div>
 
-    <div class="section" style="background: #fff9e6;">
+    <div class="section" style="background: #fdfdfe;">
         <div class="col col-1">
             <h4>★ 常用座標模式</h4>
-            <button onclick="applyRangeMode(1)" style="width:100%; margin-bottom:5px; padding:5px; font-weight:bold;">模式 1 (x90, y62)</button>
-            <button onclick="applyRangeMode(2)" style="width:100%; padding:5px;">模式 2 (方塊型 10,90)</button>
+            <button onclick="applyRangeMode(1)" style="width:100%; margin-bottom:4px; padding:4px;">模式 1 (x90, y62) - 緊湊</button>
+            <button onclick="applyRangeMode(2)" style="width:100%; margin-bottom:4px; padding:4px;">模式 2 (方塊型 10,90)</button>
+            <button onclick="applyRangeMode(3)" style="width:100%; padding:4px; background:#5cb85c; color:white; border:none; font-weight:bold;">模式 3 (A3專用 275,240)</button>
         </div>
         <div class="col col-2">
             <h4>★ 自定義範圍排版</h4>
@@ -101,12 +109,12 @@
             Y: <input type="number" id="custY1" value="10" style="width:40px"> | 
             右下 X: <input type="number" id="custX2" value="200" style="width:40px"> 
             Y: <input type="number" id="custY2" value="280" style="width:40px">
-            <button onclick="applyRangeMode('custom')" style="background:#6c757d; color:white; border:none; padding:5px 10px; cursor:pointer; margin-left:10px;">套用</button>
+            <button onclick="applyRangeMode('custom')" style="background:#666; color:white; border:none; padding:4px 10px; cursor:pointer;">手動套用</button>
         </div>
         <div class="col col-3">
-            <h4>★ 大小調整</h4>
+            <h4>★ 批次修改</h4>
             大小：<input type="number" id="batchSize" value="25" style="width:40px"> px
-            <button onclick="setAllSize()" style="background:#f39c12; color:white; border:none; padding:5px 10px; cursor:pointer;">執行</button>
+            <button onclick="setAllSize()" style="background:#f0ad4e; color:white; border:none; padding:4px 8px; cursor:pointer;">執行</button>
         </div>
         <div class="clearfix"></div>
     </div>
@@ -114,15 +122,15 @@
     <div class="section">
         <table class="queue-table">
             <thead>
-                <tr style="background:#eee">
-                    <th>內容</th><th>內部</th><th>X(mm)</th><th>Y(mm)</th><th>大小</th><th>類型</th><th>操作</th>
+                <tr>
+                    <th>文字</th><th>內容</th><th>X(mm)</th><th>Y(mm)</th><th>大小</th><th>類型</th><th>操作</th>
                 </tr>
             </thead>
             <tbody id="queueBody"></tbody>
         </table>
-        <div style="margin-top:15px; text-align:right;">
-            <button onclick="clearQueue()" style="background:#666; color:#fff; border:none; padding:10px 15px; cursor:pointer;">清空</button>
-            <button onclick="window.print()" style="padding:12px 40px; background:#28a745; color:white; border:none; cursor:pointer; font-weight:bold; font-size:16px;">執行列印</button>
+        <div style="margin-top:10px; text-align:right;">
+            <button onclick="clearQueue()" style="background:#999; color:#fff; border:none; padding:8px 12px; cursor:pointer;">清空清單</button>
+            <button onclick="window.print()" style="padding:10px 40px; background:#28a745; color:white; border:none; cursor:pointer; font-weight:bold; font-size:16px; border-radius:4px;">執行列印 (Ctrl+P)</button>
         </div>
     </div>
 </div>
@@ -131,7 +139,6 @@
 
 <script>
     var queue = [];
-    // 定義導角遮罩：[左上, 右上, 左下, 右下]，8號為全無遮罩(正方形)
     var cornerDefs = { 0:[0,0,0,0], 1:[0,0,1,1], 2:[1,1,1,1], 3:[0,0,1,0], 4:[0,0,0,1], 5:[1,0,1,1], 6:[0,1,1,1], 7:[1,0,0,1], 8:[0,0,0,0] };
     var selectedCornerType = 3;
 
@@ -143,8 +150,7 @@
             btn.className = 'picker-btn' + (i === selectedCornerType ? ' active' : '');
             btn.id = 'p-' + i;
             btn.onclick = (function(idx){ return function(){ selectCorner(idx); }; })(i);
-            var label = (i===8) ? '8 (正方)' : i;
-            btn.innerHTML = createIconHtml(14, '?', cornerDefs[i], false) + '<div style="font-size:10px">' + label + '</div>';
+            btn.innerHTML = createIconHtml(14, '?', cornerDefs[i], false) + '<div style="font-size:10px">' + (i==8?'方':i) + '</div>';
             picker.appendChild(btn);
         }
     }
@@ -158,7 +164,6 @@
     function createIconHtml(size, num, corners, isStamp) {
         if (isStamp) return '<div class="stamp-box" style="font-size:'+(size*0.7)+'px; margin-left:5px;">' + num + '</div>';
         var html = '<div class="icon-box" style="width:'+size+'px;height:'+size+'px;line-height:'+(size-2)+'px;font-size:'+(size*0.6)+'px;">' + num;
-        // 8號不導角不加遮罩
         if(corners[0]) html += '<div class="mask m-tl"></div>';
         if(corners[1]) html += '<div class="mask m-tr"></div>';
         if(corners[2]) html += '<div class="mask m-bl"></div>';
@@ -180,11 +185,16 @@
 
     function applyRangeMode(mode) {
         if (queue.length === 0) return;
-        var x1, y1, x2, y2;
+        var x1, y1, x2, y2, itemW = 38, rowH = 12;
+        
         if (mode === 1) {
             x1 = 90; y1 = 62; x2 = 90 + 80; y2 = 62 + 10;
+            itemW = 25; // 模式1縮小間距，變更緊湊
         } else if (mode === 2) {
             x1 = 10; y1 = 90; x2 = 10 + 50; y2 = 90 + 50;
+        } else if (mode === 3) {
+            document.getElementById('paperSize').value = "A3";
+            x1 = 275; y1 = 240; x2 = 275 + 40; y2 = 240 + 50;
         } else {
             x1 = parseFloat(document.getElementById('custX1').value);
             y1 = parseFloat(document.getElementById('custY1').value);
@@ -192,7 +202,7 @@
             y2 = parseFloat(document.getElementById('custY2').value);
         }
 
-        var curX = x1, curY = y1, itemW = 38, rowH = 12;
+        var curX = x1, curY = y1;
         for (var i = 0; i < queue.length; i++) {
             if (curX + itemW > x2 + 2) { curX = x1; curY += rowH; }
             if (curY + rowH > y2 + 2) break;
@@ -219,8 +229,8 @@
         for(var i=0; i<queue.length; i++) {
             var item = queue[i];
             var tr = document.createElement('tr');
-            var optHtml = '<option value="0" '+(item.corner==0?'selected':'')+'>印章</option>';
-            for(var k=1; k<=8; k++) optHtml += '<option value="'+k+'" '+(item.corner==k?'selected':'')+'>'+(k==8?'8號(方)':k+'號')+'</option>';
+            var optHtml = '<option value="0" '+(item.corner==0?'selected':'')+'>純文字</option>';
+            for(var k=1; k<=8; k++) optHtml += '<option value="'+k+'" '+(item.corner==k?'selected':'')+'>'+(k==8?'8(方)':k)+'號</option>';
             tr.innerHTML = 
                 '<td><input type="text" value="'+item.txt+'" onchange="editItem('+i+',\'txt\',this.value)"></td>' +
                 '<td><input type="text" value="'+item.num+'" onchange="editItem('+i+',\'num\',this.value)" style="width:40px"></td>' +
@@ -228,7 +238,7 @@
                 '<td><input type="number" value="'+item.y+'" onchange="editItem('+i+',\'y\',this.value)" style="width:45px"></td>' +
                 '<td><input type="number" value="'+item.size+'" onchange="editItem('+i+',\'size\',this.value)" style="width:40px"></td>' +
                 '<td><select onchange="editItem('+i+',\'corner\',this.value)">'+optHtml+'</select></td>' +
-                '<td><button onclick="removeItem('+i+')">刪除</button></td>';
+                '<td><button onclick="removeItem('+i+')">刪</button></td>';
             body.appendChild(tr);
         }
         generate();
@@ -243,17 +253,29 @@
         area.innerHTML = '';
         var pSize = document.getElementById('paperSize').value;
         var total = parseInt(document.getElementById('totalPage').value);
-        for (var p = 1; p <= total; p++) {
+        var freq = parseInt(document.getElementById('printFreq').value) || 1;
+
+        for (var p = 0; p < total; p++) {
             var page = document.createElement('div');
             page.className = 'page ' + pSize;
+            
+            // 判斷這一張紙是否要列印文字內容
+            var shouldShowText = (p % freq === 0);
+
             for(var j=0; j<queue.length; j++) {
                 var itm = queue[j];
                 var el = document.createElement('div');
                 el.className = 'print-item';
                 el.style.left = itm.x + 'mm';
                 el.style.top = itm.y + 'mm';
-                var icon = createIconHtml(itm.size, itm.num, cornerDefs[itm.corner], (itm.corner==0));
-                el.innerHTML = '<span class="label-text" style="font-size:'+(itm.size*0.5)+'px;">'+itm.txt+'</span>' + icon;
+                
+                if (shouldShowText) {
+                    var icon = createIconHtml(itm.size, itm.num, cornerDefs[itm.corner], (itm.corner==0));
+                    el.innerHTML = '<span class="label-text" style="font-size:'+(itm.size*0.5)+'px;">'+itm.txt+'</span>' + icon;
+                } else {
+                    // 不印文字時，僅留一個極小的淡色點作為物理座標參考（可根據需求移除）
+                    el.innerHTML = '<div style="width:1px; height:1px; background:#eee;"></div>';
+                }
                 page.appendChild(el);
             }
             area.appendChild(page);
